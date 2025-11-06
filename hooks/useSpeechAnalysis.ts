@@ -97,6 +97,7 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
     const fullTranscriptRef = React.useRef('');
     const recordingStartTimeRef = React.useRef<number>(0); // NEW
     const transcriptLogRef = React.useRef<{ text: string, timestamp: number }[]>([]); // NEW
+    const recognitionStoppedRef = React.useRef(false); // For fatal errors
 
 
     const isRecordingRef = React.useRef(isRecording);
@@ -123,19 +124,30 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
 
         recognition.onend = () => {
             setAnalysis(prev => ({ ...prev, isListening: false, wpm: 0 }));
-            if (isRecordingRef.current) {
-                try {
-                    recognition.start();
-                } catch (e) {
-                    console.error("Error restarting speech recognition:", e);
-                }
+            // Only restart if recording is active and no fatal error occurred
+            if (isRecordingRef.current && !recognitionStoppedRef.current) {
+                setTimeout(() => { // Add a small delay to avoid spamming start requests
+                    try {
+                        // Double check recording is still active before restarting
+                        if (isRecordingRef.current) {
+                            recognition.start();
+                        }
+                    } catch (e) {
+                        console.error("Error restarting speech recognition:", e);
+                    }
+                }, 250);
             }
         };
         
         recognition.onerror = (event) => {
             console.error('Speech recognition error', event.error);
+            // Check for fatal errors that shouldn't be auto-restarted
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                recognitionStoppedRef.current = true;
+                setAnalysis(prev => ({ ...prev, isListening: false, coachingHint: 'Speech recognition disabled.' }));
+            }
             if (event.error !== 'no-speech' && event.error !== 'audio-capture') {
-                setAnalysis(prev => ({ ...prev, isListening: false }));
+                 setAnalysis(prev => ({ ...prev, isListening: false }));
             }
         };
 
@@ -194,6 +206,7 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
 
         return () => {
             if (recognitionRef.current) {
+                recognitionRef.current.onend = null; // Prevent onend restart logic during cleanup
                 recognitionRef.current.stop();
             }
             if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
@@ -205,6 +218,7 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
         const recognition = recognitionRef.current;
         if (recognition) {
             if (isRecording) {
+                recognitionStoppedRef.current = false; // Reset fatal error flag on new recording
                 try {
                     recognition.start();
                 } catch(e) {
