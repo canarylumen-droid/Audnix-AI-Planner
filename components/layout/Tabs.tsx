@@ -4,7 +4,8 @@ import { CloseIcon } from '../icons/CloseIcon';
 
 interface Tab {
     name: string;
-    icon: React.ReactNode;
+    // FIX: Changed React.ReactNode to React.ReactElement to allow cloning with props like className.
+    icon: React.ReactElement;
     content: React.ReactNode;
 }
 
@@ -37,7 +38,8 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
                         }`}
                     >
                         <span className="flex items-center">
-                            {React.cloneElement(tab.icon as React.ReactElement, { className: 'h-6 w-6' })}
+                            {/* FIX: The type change in the Tab interface resolves the prop error here. */}
+                            {React.cloneElement(tab.icon, { className: 'h-6 w-6' })}
                             <span className="ml-2 hidden lg:inline">{tab.name}</span>
                         </span>
                     </button>
@@ -82,7 +84,8 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
                                 activeTab === index ? 'bg-cyan-500/20 text-cyan-300' : 'text-gray-300 hover:bg-gray-800'
                             }`}
                         >
-                            {React.cloneElement(tab.icon as React.ReactElement, { className: 'h-6 w-6 mr-3' })}
+                            {/* FIX: The type change in the Tab interface resolves the prop error here. */}
+                            {React.cloneElement(tab.icon, { className: 'h-6 w-6 mr-3' })}
                             <span>{tab.name}</span>
                         </button>
                     ))}
