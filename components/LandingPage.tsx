@@ -152,12 +152,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <div className="scroll-animate" style={{transitionDelay: '100ms'}}>
                           <FeatureCard 
                               icon={<SpyIcon className="w-8 h-8 text-violet-400" />} 
-                              title="AI Competitor Spy"
+                              title="Dual-Mode AI Competitor Spy"
                               description="Deconstruct any competitor's success formula."
                               details={[
-                                  { icon: <CheckIcon />, text: "Analyze YouTube & Instagram videos with zero-setup AI Search grounding." },
-                                  { icon: <CheckIcon />, text: "AI reads the video's full transcript to analyze the hook, structure, and pacing." },
-                                  { icon: <CheckIcon />, text: "Get a data-driven breakdown of their 'secret formula' and a new, superior script for yourself." }
+                                  { icon: <CheckIcon />, text: "Analyze by URL: Fast, zero-setup AI Search analysis of any YouTube or Instagram video's script and public data." },
+                                  { icon: '📺', text: "Analyze by File Upload: A deep, frame-by-frame visual analysis using a powerful multimodal AI that 'watches' the video." },
+                                  { icon: <CheckIcon />, text: "Get a data-driven breakdown of their 'secret formula' and a new, superior script synthesized for you." }
                               ]}
                           />
                         </div>

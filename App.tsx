@@ -21,7 +21,7 @@ import { BrandIcon } from './components/icons/BrandIcon';
 import { AnalyticsIcon } from './components/icons/AnalyticsIcon';
 import { SpyIcon } from './components/icons/SpyIcon';
 
-import { ContentPlan, Recording, BrandKit, CompetitorAnalysisResult } from './types';
+import { ContentPlan, Recording, BrandKit, CompetitorAnalysisResult, VideoAnalysisResult } from './types';
 
 const App: React.FC = () => {
     const [hasStarted, setHasStarted] = React.useState(false);
@@ -60,10 +60,25 @@ const App: React.FC = () => {
         setActiveTab(2); // Switch to Studio Tab
     };
     
-    const handleScriptGeneratedFromSpy = (result: CompetitorAnalysisResult) => {
+    // UPDATED to handle both analysis types
+    const handleScriptGeneratedFromSpy = (result: CompetitorAnalysisResult | VideoAnalysisResult) => {
+        let script: string;
+        let title: string;
+
+        // Type guard to check which result type we have
+        if ('reconstructedScript' in result) {
+            // It's a CompetitorAnalysisResult (from URL)
+            script = result.enhancedScript;
+            title = `Inspired by: ${result.hookAnalysis.hook}`;
+        } else {
+            // It's a VideoAnalysisResult (from file upload)
+            script = result.enhancedScript.script;
+            title = "Enhanced Video Script from Upload";
+        }
+
         const plan: ContentPlan = {
-            title: `Inspired by: ${result.hookAnalysis.hook}`,
-            script: result.enhancedScript,
+            title,
+            script,
             hook: '', introduction: '', mainPoints: [], conclusion: '', cta: '', visualSuggestions: [], captions: [], hashtags: [], suggestedDuration: '',
         }
         setActivePlan(plan);

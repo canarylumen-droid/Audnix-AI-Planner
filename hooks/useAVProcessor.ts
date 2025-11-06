@@ -74,7 +74,8 @@ export const useAVProcessor = ({ onStreamReady, deviceId }: UseAVProcessorProps)
             if (onStreamReady) onStreamReady(newStream);
 
             // Setup for analysis
-            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            // FIX: Cast window to `any` to allow access to the legacy webkitAudioContext for broader browser compatibility.
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
             const source = audioContextRef.current.createMediaStreamSource(newStream);
             analyserRef.current = audioContextRef.current.createAnalyser();
             analyserRef.current.fftSize = 256;
