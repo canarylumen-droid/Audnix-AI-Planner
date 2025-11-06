@@ -1,6 +1,6 @@
 // components/tabs/StudioTab.tsx
 import * as React from 'react';
-import { ContentPlan, Recording, StudioSettings, VideoDevice } from '../../types';
+import { BrandKit, ContentPlan, Recording, StudioSettings, VideoDevice } from '../../types';
 import { useAVProcessor } from '../../hooks/useAVProcessor';
 import { useSpeechAnalysis } from '../../hooks/useSpeechAnalysis';
 import { CameraView } from '../studio/CameraView';
@@ -15,29 +15,27 @@ import { useHistoryState } from '../../hooks/useHistoryState';
 import { UndoIcon } from '../icons/UndoIcon';
 import { RedoIcon } from '../icons/RedoIcon';
 import { TechnicalCoach } from '../studio/TechnicalCoach';
-import { CameraIcon } from '../icons/CameraIcon';
 import { CameraPlaceholder } from '../studio/CameraPlaceholder';
 import { EffectsPreviewModal } from '../studio/EffectsPreviewModal';
 
 interface StudioTabProps {
     activePlan: ContentPlan | null;
     onSaveRecording: (recording: Recording) => void;
+    brandKit: BrandKit; // NEW
 }
 
-export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecording }) => {
+export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecording, brandKit }) => {
     const [script, setScript] = React.useState('Welcome to the Audnix AI Studio! Generate a plan or type your script here.');
     const [title, setTitle] = React.useState('My Audnix AI Video');
     const [isRecording, setIsRecording] = React.useState(false);
-    const [teleprompterSpeed, setTeleprompterSpeed] = React.useState(3.5);
-    const [teleprompterFontSize, setTeleprompterFontSize] = React.useState(48);
-    const [teleprompterMirror, setTeleprompterMirror] = React.useState(false);
     const [showPreview, setShowPreview] = React.useState(false);
     const [isRefining, setIsRefining] = React.useState(false);
     const [refineError, setRefineError] = React.useState<string | null>(null);
-    const [isCameraReady, setIsCameraReady] = React.useState(false);
+    const [cameraRequested, setCameraRequested] = React.useState(false);
     const [isPreviewing, setIsPreviewing] = React.useState(false);
     const [previewImage, setPreviewImage] = React.useState<string | null>(null);
     const [isPreviewLoading, setIsPreviewLoading] = React.useState(false);
+    const [countdown, setCountdown] = React.useState<number | null>(null);
     
     const speechAnalysis = useSpeechAnalysis({ isRecording });
 
@@ -53,6 +51,16 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
         lighting: 'default',
         autoCutFillers: true,
         colorGrade: 'none',
+        livePreviewEnabled: false,
+        performanceMode: true,
+        teleprompter: {
+            fontSize: 48,
+            isMirrored: false,
+            opacity: 0.7,
+            textColor: '#FFFFFF',
+            lookahead: 2,
+        },
+        countdownDuration: 3,
     });
     
     const { 
@@ -66,8 +74,11 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
         startCamera,
         switchCamera,
         videoDevices,
+        selectedDeviceId,
         generateEffectsPreview,
-     } = useAVProcessor({ settings });
+     } = useAVProcessor({ settings, brandKit });
+
+    const isCameraReady = !!processedStream;
 
     React.useEffect(() => {
         if (activePlan) {
@@ -75,10 +86,27 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
             setTitle(activePlan.title);
         }
     }, [activePlan]);
+
+    React.useEffect(() => {
+        if (countdown === null) return;
+
+        if (countdown === 0) {
+            setIsRecording(true);
+            startRecording();
+            setCountdown(null);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setCountdown(countdown - 1);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [countdown, startRecording]);
     
     const handleStartCamera = () => {
         startCamera();
-        setIsCameraReady(true);
+        setCameraRequested(true);
     };
 
     const handleGeneratePreview = async () => {
@@ -97,8 +125,7 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
 
     const handleStart = () => {
         setShowPreview(false);
-        setIsRecording(true);
-        startRecording();
+        setCountdown(settings.countdownDuration);
     };
 
     const handleStop = () => {
@@ -117,6 +144,8 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
                 url: URL.createObjectURL(recordedBlob),
                 captions: activePlan?.captions || [],
                 hashtags: activePlan?.hashtags || [],
+                quality: settings.exportQuality,
+                transcriptLog: speechAnalysis.transcriptLog,
             };
             onSaveRecording(newRecording);
             resetRecording();
@@ -145,7 +174,7 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
 
     const renderEnhancementSummary = () => (
         <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 space-y-4 text-center">
-            <h3 className="text-xl font-bold text-cyan-400">AI Enhancement Summary</h3>
+            <h3 className="text-xl font-bold text-teal-400">AI Enhancement Summary</h3>
             <p className="text-gray-300">Your video is ready to be finalized. The AI will apply the following enhancements upon export:</p>
             <ul className="text-left list-disc list-inside bg-gray-900 p-4 rounded-md text-gray-400">
                 {settings.autoCutFillers && (speechAnalysis.fillerWords > 0 || speechAnalysis.stammers > 0) && <li>Seamlessly removed {speechAnalysis.fillerWords} filler word(s) and {speechAnalysis.stammers} stammer(s)</li>}
@@ -177,14 +206,14 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
                     value={script}
                     onChange={(e) => setScript(e.target.value)}
                     rows={12}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-md py-3 px-4 text-gray-200 focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition"
+                    className="w-full saas-input"
                     placeholder="Write your script here..."
                 />
                 {refineError && <p className="text-red-400 text-sm mt-2">{refineError}</p>}
                 <button 
                     onClick={handleRefineScript} 
                     disabled={isRefining || !script.trim()}
-                    className="w-full flex justify-center items-center gap-2 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition-all duration-300"
+                    className="w-full flex justify-center items-center gap-2 saas-button-primary"
                 >
                     {isRefining ? <><Spinner /> Refining...</> : '✨ Refine Script with AI'}
                 </button>
@@ -202,6 +231,8 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
             </button>
         </div>
     );
+
+    const isCountingDown = countdown !== null && countdown > 0;
 
     return (
         <div className="grid grid-cols-1 gap-8">
@@ -222,11 +253,19 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
                         isRecording={isRecording}
                         coachingHint={speechAnalysis.coachingHint}
                         showFrameGuide={settings.showFrameGuide}
+                        countdown={countdown}
                     />
                 ) : (
-                    <CameraPlaceholder onStartCamera={handleStartCamera} />
+                    <CameraPlaceholder 
+                        onStartCamera={handleStartCamera} 
+                        isLoading={cameraRequested && !isCameraReady}
+                    />
                 )}
-                {isRecording && <StudioTeleprompter script={script} isRecording={isRecording} speed={teleprompterSpeed} fontSize={teleprompterFontSize} isMirrored={teleprompterMirror} />}
+                {isRecording && <StudioTeleprompter 
+                    script={script} 
+                    liveTranscript={speechAnalysis.liveTranscript}
+                    settings={settings.teleprompter} 
+                />}
             </div>
 
             <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -239,6 +278,7 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
                             onStop={handleStop}
                             onSave={handleSave}
                             onDiscard={handleDiscard}
+                            isCountingDown={isCountingDown}
                         />
                      </div>
                  )}
@@ -246,21 +286,16 @@ export const StudioTab: React.FC<StudioTabProps> = ({ activePlan, onSaveRecordin
                  
                  {showPreview && recordedBlob ? renderEnhancementSummary() : (
                     <div className="space-y-6">
-                        {!isRecording && isCameraReady ? (
+                        {!isRecording && isCameraReady && !isCountingDown ? (
                             <>
                                 {renderScriptEditor()}
                                 {renderUndoRedoControls()}
                                 <StudioControls 
                                     settings={settings}
                                     onSettingsChange={setSettings}
-                                    teleprompterSpeed={teleprompterSpeed}
-                                    onTeleprompterSpeedChange={setTeleprompterSpeed}
-                                    teleprompterFontSize={teleprompterFontSize}
-                                    onTeleprompterFontSizeChange={setTeleprompterFontSize}
-                                    teleprompterMirror={teleprompterMirror}
-                                    onTeleprompterMirrorChange={setTeleprompterMirror}
                                     onSwitchCamera={switchCamera}
                                     videoDevices={videoDevices}
+                                    selectedDeviceId={selectedDeviceId}
                                     onGeneratePreview={handleGeneratePreview}
                                 />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

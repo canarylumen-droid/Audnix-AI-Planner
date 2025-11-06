@@ -1,87 +1,94 @@
-# Audnix AI Planner: Your All-in-One Viral Content Studio
+# Audnix AI Planner: The Ultimate AI Growth Platform for Creators
 
-Audnix AI Planner is a revolutionary, AI-powered dashboard designed to streamline the entire workflow of creating viral short-form video content. It takes you from high-level strategy and idea generation to professional-grade recording, automated post-production, and final export—all within a single, intuitive interface that runs securely on your device.
+The Audnix AI Planner is a comprehensive, on-device application designed to be the ultimate growth partner for content creators, marketers, and entrepreneurs. It provides a seamless, data-driven workflow that takes you from initial idea to a viral-ready, professionally recorded video, complete with post-production assets and strategic performance analysis.
 
----
+This platform is not just a content planner; it's a complete ecosystem for market domination.
 
-## ✨ How It Stands Out
+## The Audnix AI Platform: A Freemium Model
 
-While many tools offer piecemeal solutions, Audnix AI Planner provides a seamless, end-to-end workflow that sets it apart:
+The Audnix AI Planner is the powerful, free-to-start entry point into the larger **Audnix AI Platform**. Our business model is designed for your growth:
 
--   **All-in-One Powerhouse:** Go from a 7-day strategic campaign plan to a polished, 4K video without ever leaving the app. No more juggling separate tools for scripting, recording, editing, and planning.
--   **On-Device Privacy:** The entire application runs locally in your browser. Your ideas, scripts, and video content remain private and secure, never uploaded to a server until you're ready to share.
--   **Advanced Real-time AI Coaching:** Audnix doesn't just help you prepare; it helps you perform. Get live feedback on your delivery (pacing, filler words) and technical setup (lighting, audio levels) *as you record*.
--   **Automated Post-Production:** Save hours of tedious editing. The AI automatically removes filler words and stammers, balances audio for studio-quality sound, and applies professional video effects, all during the final export.
--   **From Viral Strategy to Professional Branding:** Beyond video, Audnix includes an AI Headshot generator, allowing you to create a consistent, high-quality professional brand image across all your social platforms.
+*   **Generous Free Tier (The Planner):** Get started immediately with the industry's most powerful content planner, studio, and analysis tools. We cover the initial AI costs to help you build momentum and create amazing content.
+*   **Usage-Based Upgrades:** As your brand grows and your usage increases, you can seamlessly upgrade to a paid plan. This sustainable model ensures the platform remains powerful, profitable, and continuously improving.
+*   **The Audnix AI Automation Suite (The Future):** The Planner helps you create content that generates leads. Our upcoming premium suite will automatically follow up on those leads, turning your content into revenue 24/7.
 
----
+## Core Features: An All-in-One Growth Engine
 
-## 🚀 Core Features
+### 1. 🕵️‍♂️ AI Competitor Spy (Zero-Setup)
+Deconstruct any competitor's success formula on YouTube or Instagram without needing any complex setup or API keys.
+- **URL-Based Analysis:** Simply paste a video link.
+- **It "Watches" the Video:** The AI uses Google Search grounding to find and analyze the video's full transcript, description, and public data.
+- **Data-Driven Insights:** Get a strategic breakdown of the competitor's hook, structure, and "secret formula."
+- **Script Synthesis:** The AI generates a brand new, superior script for you that combines their winning strategy with your unique angle.
 
-### 📅 AI Campaign Planner
--   **Strategic Launch Plans:** Describe your brand, product, and goals, and the AI generates a complete 7-day content launch strategy.
--   **Daily Topic Generation:** Get daily, goal-oriented video topics that build on each other to create a cohesive brand narrative.
--   **Progress Tracking:** Mark daily tasks as complete to stay on track with your content calendar.
--   **Seamless Integration:** Send any topic directly from the campaign planner to the content planner with a single click.
+### 2. 🧠 AI Content & Campaign Planner
+Generate complete, strategy-driven content plans from a single idea.
+- **AI Topic Validator:** Get a "Virality Score" and SWOT analysis for your topic *before* you record.
+- **Full Script Generation:** Receive a complete script, title, captions, hashtags, and a B-Roll shot list.
+- **AI Thumbnail Sketcher:** Get 3-5 written concepts for high-impact thumbnails.
 
-### ✍️ AI Content Planner
--   **Viral Script Generation:** Turn a simple idea into a full content plan, including a catchy title, a scroll-stopping hook, main points, a powerful CTA, and a complete, ready-to-read script.
--   **Idea Brainstorming:** Get AI-generated content ideas, unique angles, and related trending topics to make your content stand out.
--   **Competitor Video Analysis:** Upload a competitor's video and your script notes. The AI provides a frame-by-frame analysis and generates a superior script designed to outperform the original.
+### 3. 🎥 The AI Studio
+A professional recording studio in your browser.
+- **Voice-Activated Teleprompter:** A smart teleprompter that scrolls as you speak, with customizable lookahead.
+- **Real-Time Coaching:** Get live feedback on your delivery (Words Per Minute, filler words) and technicals (lighting, audio levels).
+- **AI Enhancements:** A full suite of effects including lighting, color grading, skin smoothing, and audio noise reduction.
+- **Brand Kit Integration:** Your logo is automatically applied as a watermark.
 
-### 🎥 AI Studio
--   **External Microphone Support:** Automatically detects and uses any connected external microphone for superior, professional-grade audio.
--   **Teleprompter:** Read your script from an integrated, auto-scrolling teleprompter with adjustable speed and font size.
--   **Real-time Video Effects:**
-    -   **Advanced Lighting:** Choose from multiple AI lighting effects: `Pro Ring Light`, `Golden Hour` (warm & cinematic), and `Dramatic` (high-contrast).
-    -   **AI Appearance Enhancements:** Apply skin tone adjustments and smoothing filters.
-    -   **Virtual Backgrounds:** Replace your background with a professional blur or a custom-uploaded image.
--   **Real-time Coaching Suite:**
-    -   **Speech Coach:** Get live feedback on your delivery, including words per minute (WPM), filler words, and stammers.
-    -   **Technical Coach:** The AI monitors your lighting and audio levels, providing real-time warnings if your scene is too dark/bright or your audio is too low/clipping.
--   **Undo/Redo:** Freely experiment with all settings—a complete history allows you to undo and redo any change.
+### 4. 🚀 Professional Export & Handoff
+Go from recording to publishing, faster.
+- **Timed Captions:** Download professional, timed caption files in multiple formats (.SRT, .VTT, .TXT).
+- **AI Social Content:** Generate fresh, context-aware social media captions and hashtags from your final video on demand.
+- **Editor-Ready:** Provide your editor with a "perfect package" to save hours in post-production.
 
-### ✂️ AI Post-Production (On Export)
--   **Studio-Quality Audio:** Advanced audio processing automatically removes background noise, balances volume levels, and cuts harsh frequencies for crystal-clear sound.
--   **Automatic Filler Word Removal:** The AI seamlessly cuts filler words ("um," "ah") and stammers detected during recording for a smooth, professional delivery.
--   **4K Export:** Export your final, polished video in stunning Ultra HD (4K) quality.
+### 5. 📈 AI Growth Consultant
+Get data-driven feedback on your published content.
+- **Simulated Performance Review:** Input your video's URL, title, and sample comments.
+- **Dashboard-Style Report:** Receive scores for virality potential, hook effectiveness, and an AI analysis of audience sentiment.
+- **Actionable Insights:** Get concrete improvement suggestions and ideas for your next video.
 
-### 🖼️ AI Headshot Generator
--   **Professional Profile Pictures:** Turn a quick snapshot from your camera into a professional headshot.
--   **Advanced Customization:**
-    -   **Custom Backgrounds:** Upload your own background image for ultimate creative control.
-    -   **Rich Presets:** Choose from numerous backgrounds, lighting styles, virtual clothing options, and background blur intensity.
--   **Undo/Redo:** Easily step back and forth through your settings to find the perfect look.
--   **High-Quality Export:** Generate and export high-resolution headshots in different sizes and formats (JPG/PNG).
+### 6. 🎨 Personalized Brand Kit
+Train the AI to generate content in your unique voice.
+- **Define Your Brand:** Upload your logo, define brand colors, and write a bio describing your tone and style.
+- **Tailored Content:** The AI uses your Brand Bio to tailor all generated scripts to match your voice.
 
-### 📁 Exports & Sharing
--   **Media Library:** All your exported videos are saved in one place.
--   **Easy Sharing:** Use the native Web Share API to share your videos directly to other apps.
--   **Download:** Save your final videos directly to your device.
+## Getting Started & Deployment
 
----
+This application is a modern frontend built with React, TypeScript, and Vite. It is designed to be deployed on a platform like Vercel.
 
-## 💡 How to Use
+### Prerequisites
+- Node.js (v18 or later)
+- A Google Gemini API Key
 
-1.  **Launch the Studio:** Open the app and click "Launch Studio" on the landing page.
-2.  **Start with a Campaign (Optional):** Navigate to the **Campaign** tab. Enter details about your brand and let the AI generate a 7-day launch plan.
-3.  **Develop Your Content:** Click "Develop Content" in the Campaign tab, or go directly to the **Planner** tab.
-    -   Enter a topic to generate a full script and content plan.
-    -   Or, upload a competitor's video to analyze it and create an enhanced script.
-4.  **Record in the Studio:** Once you have a script, click "Start Recording" to be taken to the **Studio** tab.
-    -   **Plug in your mic!** The app will automatically use it.
-    -   Adjust your AI settings (lighting, background, etc.).
-    -   Start recording while reading from the teleprompter. The AI coaches will provide live feedback.
-5.  **Review & Export:** After stopping the recording, you'll see a summary of the AI enhancements that will be applied. Click "Save & Finish" to export the final video.
-6.  **Manage Your Content:** Your finished video will appear in the **Exports** tab, ready to be shared or downloaded.
+### Local Development
+1.  **Clone the repository.**
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Set up your API Key:**
+    - Create a file named `.env` in the root of the project.
+    - Add your Google Gemini API key to this file:
+      ```
+      API_KEY=YOUR_GEMINI_API_KEY_HERE
+      ```
+    - **IMPORTANT:** The `.env` file is listed in `.gitignore` and should **never** be committed to version control.
+4.  **Run the application:**
+    ```bash
+    npm run dev
+    ```
 
----
+### Deployment to Vercel (Recommended)
+1.  **Push to GitHub:** Push your project code to a new GitHub repository.
+2.  **Create a Vercel Project:** In your Vercel dashboard, create a new project and import the GitHub repository you just created.
+3.  **Configure Environment Variables:**
+    - In your Vercel project settings, go to the "Environment Variables" section.
+    - Add a new variable with the name `API_KEY`.
+    - Paste your Google Gemini API key as the value.
+    - **DO NOT** expose this variable to the browser. Vercel handles this securely.
+4.  **Deploy:** Vercel will automatically detect the project type and deploy it. Your Audnix AI Planner will be live!
 
-## 💻 Technical Stack
+## Future Roadmap: Building an Unbeatable Moat
 
--   **Frontend:** React, TypeScript, Tailwind CSS
--   **AI Integration:** Google Gemini API (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-image`)
--   **Real-time Processing:** Web APIs (WebRTC, Web Audio API, Canvas API)
--   **Speech Recognition:** Web Speech API
-
-This application is built to run entirely on the client-side, making it fast, private, and easily deployable as a static web application.
+- **Deeper Personalization (Brand Voice Models):** Allow Pro users to train a custom AI model on their own successful content to generate scripts in their unique voice.
+- **Performance Analytics Loop:** Integrate with official platform APIs (YouTube, TikTok) to feed real performance data back into the AI, turning it into a true data-driven growth partner.
+- **Community & Script Marketplace:** Create a space for creators to share and sell their most successful script templates.

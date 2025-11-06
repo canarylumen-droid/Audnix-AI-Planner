@@ -10,13 +10,18 @@ import { UndoIcon } from '../icons/UndoIcon';
 import { RedoIcon } from '../icons/RedoIcon';
 import { UploadIcon } from '../icons/UploadIcon';
 
-const fileToBase64 = (file: File): Promise<string> => {
+const fileToDataUrlParts = (file: File): Promise<{ data: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = () => {
-            const result = (reader.result as string).split(',')[1];
-            resolve(result);
+            const result = reader.result as string;
+            const [header, data] = result.split(',');
+            const mimeType = header.match(/:(.*?);/)?.[1];
+            if (!mimeType || !data) {
+                return reject(new Error('Invalid file format.'));
+            }
+            resolve({ data, mimeType });
         };
         reader.onerror = error => reject(error);
     });
@@ -48,13 +53,16 @@ export const HeadshotTab: React.FC = () => {
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
     const backgroundInputRef = React.useRef<HTMLInputElement>(null);
 
+    React.useEffect(() => {
+        if (cameraStream && videoRef.current) {
+            videoRef.current.srcObject = cameraStream;
+        }
+    }, [cameraStream]);
+
     const startCamera = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } });
             setCameraStream(stream);
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
         } catch (err) {
             console.error(err);
             setError('Could not access camera. Please grant permission and try again.');
@@ -137,8 +145,8 @@ export const HeadshotTab: React.FC = () => {
         const file = e.target.files?.[0];
         if (file) {
             try {
-                const base64 = await fileToBase64(file);
-                setConfig({ ...config, customBackground: base64, background: 'Custom' });
+                const { data, mimeType } = await fileToDataUrlParts(file);
+                setConfig({ ...config, customBackground: { data, mimeType }, background: 'Custom' });
             } catch (err) {
                 setError("Failed to read background image.");
             }
@@ -179,7 +187,7 @@ export const HeadshotTab: React.FC = () => {
                 <button onClick={reset} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-full transition-colors">
                     Retake
                 </button>
-                 <button onClick={handleGenerate} disabled={isLoading} className="bg-fuchsia-600 hover:bg-fuchsia-700 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-full transition-colors flex items-center justify-center gap-2">
+                 <button onClick={handleGenerate} disabled={isLoading} className="saas-button-primary py-3 px-8 flex items-center justify-center gap-2">
                     {isLoading ? <><Spinner/> Generating...</> : '✨ Generate Headshot'}
                 </button>
             </div>
@@ -188,7 +196,7 @@ export const HeadshotTab: React.FC = () => {
     
      const renderGeneratedImageView = () => (
         <div className="space-y-6 flex flex-col items-center">
-            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-500">Your AI Headshot is Ready!</h3>
+            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-teal-400">Your AI Headshot is Ready!</h3>
             <img src={generatedImage!} alt="AI generated headshot" className="rounded-lg max-w-md w-full" />
              
              <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700 w-full max-w-md space-y-4">
@@ -200,7 +208,7 @@ export const HeadshotTab: React.FC = () => {
                             <button 
                                 key={format}
                                 onClick={() => setExportSettings(s => ({...s, format}))}
-                                className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition ${exportSettings.format === format ? 'bg-cyan-500 text-gray-900' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}`}
+                                className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition ${exportSettings.format === format ? 'bg-teal-500 text-gray-900' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}`}
                             >
                                 {format}
                             </button>
@@ -214,7 +222,7 @@ export const HeadshotTab: React.FC = () => {
                             <button 
                                 key={size}
                                 onClick={() => setExportSettings(s => ({...s, size}))}
-                                className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition ${exportSettings.size === size ? 'bg-cyan-500 text-gray-900' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}`}
+                                className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition ${exportSettings.size === size ? 'bg-teal-500 text-gray-900' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}`}
                             >
                                 {size}px
                             </button>
@@ -227,7 +235,7 @@ export const HeadshotTab: React.FC = () => {
                 <button onClick={() => { setGeneratedImage(null); setCapturedImage(null); }} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-full transition-colors">
                     Start Over
                 </button>
-                <button onClick={handleDownload} className="bg-cyan-500 hover:bg-cyan-600 text-gray-900 font-bold py-3 px-8 rounded-full transition-colors">
+                <button onClick={handleDownload} className="saas-button-primary py-3 px-8">
                     Download
                 </button>
             </div>
@@ -247,29 +255,51 @@ export const HeadshotTab: React.FC = () => {
             <div className="space-y-6 p-2">
                  <div>
                     <label className="text-sm font-medium text-gray-300">Background Style</label>
-                    <select value={config.background} onChange={e => setConfig({ ...config, background: e.target.value as HeadshotConfig['background'] })} className="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-gray-200" disabled={!!config.customBackground}>
-                        <option>Office</option>
-                        <option>Outdoor Cafe</option>
-                        <option>Studio Gray</option>
-                        <option>Modern Tech</option>
-                        <option>Bookshelf</option>
-                        <option>Beach</option>
-                        <option>Cityscape</option>
-                        <option>Abstract Gradient</option>
-                        <option>Abstract Geometric</option>
-                        <option>Minimalist Studio</option>
-                        <option>Nature Landscape</option>
-                         {config.customBackground && <option value="Custom">Custom Upload</option>}
-                    </select>
+                    <div className="saas-select-container mt-1">
+                        <select 
+                            value={config.background} 
+                            onChange={e => {
+                                setConfig({ ...config, background: e.target.value as HeadshotConfig['background'], customBackground: undefined });
+                                if(backgroundInputRef.current) backgroundInputRef.current.value = '';
+                            }}
+                            className="w-full saas-input saas-select"
+                        >
+                            <optgroup label="Studio Colors">
+                                <option>Studio White</option>
+                                <option>Studio Gray</option>
+                                <option>Studio Black</option>
+                                <option>Studio Blue</option>
+                                <option>Studio Dark Blue</option>
+                                <option>Studio Green</option>
+                                <option>Studio Orange</option>
+                            </optgroup>
+                            <optgroup label="Environments">
+                                <option>Office</option>
+                                <option>Outdoor Cafe</option>
+                                <option>Modern Tech</option>
+                                <option>Bookshelf</option>
+                                <option>Beach</option>
+                                <option>Cityscape</option>
+                                <option>Nature Landscape</option>
+                            </optgroup>
+                            <optgroup label="Abstract & Minimalist">
+                                <option>Minimalist Studio</option>
+                                <option>Abstract Gradient</option>
+                                <option>Abstract Geometric</option>
+                            </optgroup>
+                            {config.background === 'Custom' && <option value="Custom">Custom Upload</option>}
+                        </select>
+                        <div className="saas-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
+                    </div>
                      <div className="mt-3">
-                        {config.customBackground ? (
+                        {config.background === 'Custom' && config.customBackground ? (
                              <div className="flex items-center gap-2 p-2 bg-gray-900 rounded-md">
-                                <img src={`data:image/jpeg;base64,${config.customBackground}`} className="w-10 h-10 object-cover rounded" alt="Custom background preview"/>
+                                <img src={`data:${config.customBackground.mimeType};base64,${config.customBackground.data}`} className="w-10 h-10 object-cover rounded" alt="Custom background preview"/>
                                 <span className="text-sm text-gray-300 flex-1 truncate">Custom Background</span>
                                 <button onClick={clearCustomBackground} className="text-red-400 hover:text-red-500 font-bold text-lg">&times;</button>
                             </div>
                         ) : (
-                             <button onClick={() => backgroundInputRef.current?.click()} className="w-full flex justify-center items-center gap-2 text-sm bg-gray-700 hover:bg-gray-600 text-cyan-300 font-semibold py-2 px-3 rounded-md transition">
+                             <button onClick={() => backgroundInputRef.current?.click()} className="w-full flex justify-center items-center gap-2 text-sm bg-gray-700 hover:bg-gray-600 text-teal-300 font-semibold py-2 px-3 rounded-md transition">
                                 <UploadIcon className="w-4 h-4" /> Upload Your Own
                             </button>
                         )}
@@ -278,37 +308,46 @@ export const HeadshotTab: React.FC = () => {
                 </div>
                 <div>
                     <label htmlFor="backgroundBlur" className="text-sm font-medium text-gray-300">Background Blur: {Math.round(config.backgroundBlur * 100)}%</label>
-                    <input type="range" id="backgroundBlur" min="0" max="1" step="0.1" value={config.backgroundBlur} onChange={(e) => setConfig({ ...config, backgroundBlur: parseFloat(e.target.value) })} className="mt-1 w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400"/>
+                    <input type="range" id="backgroundBlur" min="0" max="1" step="0.1" value={config.backgroundBlur} onChange={(e) => setConfig({ ...config, backgroundBlur: parseFloat(e.target.value) })} className="mt-1 w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-teal-400"/>
                 </div>
                 <div>
                     <label className="text-sm font-medium text-gray-300">Lighting Style</label>
-                    <select value={config.lighting} onChange={e => setConfig({ ...config, lighting: e.target.value as HeadshotConfig['lighting'] })} className="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-gray-200">
-                        <option>Professional Studio</option>
-                        <option>Golden Hour</option>
-                        <option>Dramatic</option>
-                        <option>Natural Daylight</option>
-                        <option>Rim Lighting</option>
-                        <option>Softbox Lighting</option>
-                    </select>
+                    <div className="saas-select-container mt-1">
+                        <select value={config.lighting} onChange={e => setConfig({ ...config, lighting: e.target.value as HeadshotConfig['lighting'] })} className="w-full saas-input saas-select">
+                            <option>Professional Studio</option>
+                            <option>Golden Hour</option>
+                            <option>Dramatic</option>
+                            <option>Natural Daylight</option>
+                            <option>Rim Lighting</option>
+                            <option>Softbox Lighting</option>
+                        </select>
+                        <div className="saas-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
+                    </div>
                 </div>
                 <fieldset>
                     <legend className="font-semibold text-gray-200 mb-3 text-md">Virtual Clothing (Optional)</legend>
                     <div className="space-y-4">
-                        <label className="flex items-center space-x-3 cursor-pointer"><input type="checkbox" checked={config.clothing.enabled} onChange={e => setConfig({ ...config, clothing: { ...config.clothing, enabled: e.target.checked } })} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-cyan-500"/><span className="text-gray-300 text-sm">Enable Virtual Clothing</span></label>
+                        <label className="saas-checkbox-container"><input type="checkbox" checked={config.clothing.enabled} onChange={e => setConfig({ ...config, clothing: { ...config.clothing, enabled: e.target.checked } })} className="saas-checkbox"/><span className="text-gray-300 text-sm ml-3">Enable Virtual Clothing</span></label>
                             {config.clothing.enabled && (
                             <div className="pl-6 space-y-4">
-                                    <select value={config.clothing.style} onChange={e => setConfig({ ...config, clothing: { ...config.clothing, style: e.target.value as HeadshotConfig['clothing']['style'] } })} className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-gray-200 text-sm">
-                                    <option>Business Suit</option>
-                                    <option>Casual Blazer</option>
-                                    <option>Simple T-Shirt</option>
-                                    <option>Turtleneck</option>
-                                    <option>Formal Dress</option>
-                                    <option>Casual Sweater</option>
-                                    <option>Athletic Wear</option>
-                                </select>
-                                <div className="flex items-center space-x-2">
+                                <div className="saas-select-container">
+                                    <select value={config.clothing.style} onChange={e => setConfig({ ...config, clothing: { ...config.clothing, style: e.target.value as HeadshotConfig['clothing']['style'] } })} className="w-full saas-input saas-select text-sm">
+                                        <option>Business Suit</option>
+                                        <option>Casual Blazer</option>
+                                        <option>Simple T-Shirt</option>
+                                        <option>Turtleneck</option>
+                                        <option>Formal Dress</option>
+                                        <option>Casual Sweater</option>
+                                        <option>Athletic Wear</option>
+                                    </select>
+                                    <div className="saas-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
+                                </div>
+                                <div className="flex items-center space-x-3">
                                     <label htmlFor="clothingColor" className="text-sm text-gray-300">Color:</label>
-                                    <input id="clothingColor" type="color" value={config.clothing.color} onChange={e => setConfig({ ...config, clothing: { ...config.clothing, color: e.target.value } })} className="w-8 h-8 bg-transparent rounded"/>
+                                    <div className="saas-color-picker-container">
+                                        <div className="saas-color-preview" style={{backgroundColor: config.clothing.color}}></div>
+                                        <input id="clothingColor" type="color" value={config.clothing.color} onChange={e => setConfig({ ...config, clothing: { ...config.clothing, color: e.target.value } })} className="saas-color-picker"/>
+                                    </div>
                                 </div>
                             </div>
                             )}
@@ -316,7 +355,7 @@ export const HeadshotTab: React.FC = () => {
                 </fieldset>
                  <fieldset>
                     <legend className="font-semibold text-gray-200 mb-3 text-md">Output Quality</legend>
-                    <label className="flex items-center space-x-3 cursor-pointer"><input type="checkbox" checked={config.highQuality} onChange={e => setConfig({ ...config, highQuality: e.target.checked })} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-cyan-500"/><span className="text-gray-300 text-sm">High Quality Output (Slower)</span></label>
+                    <label className="saas-checkbox-container"><input type="checkbox" checked={config.highQuality} onChange={e => setConfig({ ...config, highQuality: e.target.checked })} className="saas-checkbox"/><span className="text-gray-300 text-sm ml-3">High Quality Output (Slower)</span></label>
                 </fieldset>
             </div>
         </Card>
@@ -330,7 +369,7 @@ export const HeadshotTab: React.FC = () => {
                     <div className="text-center p-8 bg-gray-800/50 rounded-lg border border-gray-700 w-full max-w-md">
                         <h2 className="text-2xl font-bold">Create Your AI Headshot</h2>
                         <p className="text-gray-400 mt-2 mb-6">Get a professional profile picture in seconds.</p>
-                        <button onClick={startCamera} className="bg-cyan-500 hover:bg-cyan-600 text-gray-900 font-bold py-3 px-6 rounded-full transition-colors flex items-center justify-center gap-2 mx-auto">
+                        <button onClick={startCamera} className="saas-button-primary flex items-center justify-center gap-2 mx-auto">
                             <CameraIcon /> Start Camera
                         </button>
                     </div>

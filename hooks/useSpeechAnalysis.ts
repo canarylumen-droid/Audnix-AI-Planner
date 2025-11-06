@@ -84,6 +84,8 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
         stammers: 0,
         coachingHint: null,
         isListening: false,
+        liveTranscript: '',
+        transcriptLog: [], // NEW
     });
 
     const recognitionRef = React.useRef<SpeechRecognition | null>(null);
@@ -91,15 +93,17 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
     const lastWordTimestampRef = React.useRef(Date.now());
     const hintTimeoutRef = React.useRef<number | null>(null);
     const dynamicHintIntervalRef = React.useRef<number | null>(null);
-    const lastWordRef = React.useRef<string>(''); // NEW: Ref to track the last word for stammer detection
+    const lastWordRef = React.useRef<string>('');
+    const fullTranscriptRef = React.useRef('');
+    const recordingStartTimeRef = React.useRef<number>(0); // NEW
+    const transcriptLogRef = React.useRef<{ text: string, timestamp: number }[]>([]); // NEW
 
-    // FIX: Use a ref to track the latest isRecording state to avoid stale closures.
+
     const isRecordingRef = React.useRef(isRecording);
     React.useEffect(() => {
         isRecordingRef.current = isRecording;
     }, [isRecording]);
 
-    // FIX: This effect runs only ONCE to set up the recognition object.
     React.useEffect(() => {
         const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognitionImpl) {
@@ -119,7 +123,6 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
 
         recognition.onend = () => {
             setAnalysis(prev => ({ ...prev, isListening: false, wpm: 0 }));
-            // FIX: Use the ref to get the latest value and safely restart recognition.
             if (isRecordingRef.current) {
                 try {
                     recognition.start();
@@ -137,47 +140,56 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
         };
 
         recognition.onresult = (event) => {
-            let finalTranscript = '';
-
+            let interimTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const transcriptPart = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
+                    fullTranscriptRef.current += transcriptPart;
+                    
+                    // NEW: Log the final transcript part with a timestamp
+                    const timestamp = performance.now() - recordingStartTimeRef.current;
+                    transcriptLogRef.current.push({ text: transcriptPart.trim(), timestamp });
+                    
+                    const words = transcriptPart.toLowerCase().trim().split(/\s+/).filter(Boolean);
+                    let newFillers = 0;
+                    let newStammers = 0;
+
+                    words.forEach(word => {
+                        if (FILLER_WORDS.includes(word)) {
+                            newFillers++;
+                        }
+                        if (word === lastWordRef.current) {
+                            newStammers++;
+                        }
+                        lastWordRef.current = word;
+                    });
+
+                    if (newFillers > 0 || newStammers > 0) {
+                        setAnalysis(prev => ({ 
+                            ...prev, 
+                            fillerWords: prev.fillerWords + newFillers,
+                            stammers: prev.stammers + newStammers
+                        }));
+                    }
+
+                    const now = Date.now();
+                    const timeDiffMinutes = (now - lastWordTimestampRef.current) / 60000;
+                    wordCountRef.current += words.length;
+
+                    if (timeDiffMinutes > 0) {
+                        const wpm = Math.round(wordCountRef.current / timeDiffMinutes);
+                        setAnalysis(prev => ({...prev, wpm}));
+                    }
+
+                } else {
+                    interimTranscript += transcriptPart;
                 }
             }
-
-            if (finalTranscript) {
-                const words = finalTranscript.toLowerCase().trim().split(/\s+/).filter(Boolean);
-                
-                let newFillers = 0;
-                let newStammers = 0;
-
-                words.forEach(word => {
-                    if (FILLER_WORDS.includes(word)) {
-                        newFillers++;
-                    }
-                    if (word === lastWordRef.current) {
-                        newStammers++;
-                    }
-                    lastWordRef.current = word;
-                });
-
-                if (newFillers > 0 || newStammers > 0) {
-                     setAnalysis(prev => ({ 
-                         ...prev, 
-                         fillerWords: prev.fillerWords + newFillers,
-                         stammers: prev.stammers + newStammers
-                    }));
-                }
-
-                const now = Date.now();
-                const timeDiffMinutes = (now - lastWordTimestampRef.current) / 60000;
-                wordCountRef.current += words.length;
-
-                if (timeDiffMinutes > 0) {
-                    const wpm = Math.round(wordCountRef.current / timeDiffMinutes);
-                    setAnalysis(prev => ({...prev, wpm}));
-                }
-            }
+            setAnalysis(prev => ({
+                ...prev, 
+                liveTranscript: fullTranscriptRef.current + interimTranscript,
+                transcriptLog: [...transcriptLogRef.current] // Update state with the log
+            }));
         };
 
         return () => {
@@ -187,9 +199,8 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
             if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
             if (dynamicHintIntervalRef.current) clearInterval(dynamicHintIntervalRef.current);
         };
-    }, []); // Empty array ensures this runs only once.
+    }, []);
 
-    // This effect controls starting and stopping based on the isRecording prop
     React.useEffect(() => {
         const recognition = recognitionRef.current;
         if (recognition) {
@@ -201,7 +212,10 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
                 }
                 wordCountRef.current = 0;
                 lastWordTimestampRef.current = Date.now();
-                setAnalysis(prev => ({...prev, fillerWords: 0, stammers: 0, wpm: 0}));
+                fullTranscriptRef.current = '';
+                transcriptLogRef.current = []; // NEW: Reset log
+                recordingStartTimeRef.current = performance.now(); // NEW: Set start time
+                setAnalysis(prev => ({...prev, fillerWords: 0, stammers: 0, wpm: 0, liveTranscript: '', transcriptLog: []}));
                 lastWordRef.current = '';
 
                 dynamicHintIntervalRef.current = window.setInterval(() => {
@@ -223,7 +237,7 @@ export const useSpeechAnalysis = ({ isRecording }: UseSpeechAnalysisProps): Spee
                     clearTimeout(hintTimeoutRef.current);
                     hintTimeoutRef.current = null;
                 }
-                setAnalysis(prev => ({...prev, coachingHint: null, isListening: false}));
+                setAnalysis(prev => ({...prev, coachingHint: null, isListening: false, liveTranscript: ''}));
             }
         }
     }, [isRecording]);

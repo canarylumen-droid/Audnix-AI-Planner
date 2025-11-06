@@ -1,21 +1,48 @@
 // hooks/useAVProcessor.ts
 import * as React from 'react';
-import { StudioSettings, TechnicalAnalysis, VideoDevice } from '../types';
+import { StudioSettings, TechnicalAnalysis, VideoDevice, BrandKit } from '../types';
 
 interface AVProcessorProps {
     settings: StudioSettings;
+    brandKit: BrandKit; // NEW
 }
 
-const getIdealDimensions = (quality: '720p' | '1080p' | '4K') => {
+const getIdealDimensions = (quality: '720p' | '1080p' | '4K', performanceMode: boolean) => {
+    if (performanceMode) {
+        return { width: 1280, height: 720 };
+    }
     switch (quality) {
-        case '4K': return { width: 3840, height: 2160 };
+        // Cap camera request at 1080p for preview to prevent lag, even if export is 4K.
+        // The higher bitrate for 4K will still produce a better quality file from the 1080p source.
+        case '4K': return { width: 1920, height: 1080 };
         case '1080p': return { width: 1920, height: 1080 };
         case '720p': return { width: 1280, height: 720 };
         default: return { width: 1920, height: 1080 };
     }
 }
 
-export const useAVProcessor = ({ settings }: AVProcessorProps) => {
+// Builds the CSS filter string for live preview. Excludes performance-heavy filters.
+const buildLiveFilterString = (s: StudioSettings): string => {
+    if (!s.livePreviewEnabled) return '';
+
+    let filterString = '';
+    // NOTE: 'blur' is intentionally excluded from live preview due to high performance cost.
+    if(s.skinTone === 'warm') filterString += 'sepia(0.2) saturate(1.1) ';
+    if(s.skinTone === 'cool') filterString += 'contrast(1.05) saturate(0.95) ';
+    if(s.skinTone === 'glow') filterString += 'brightness(1.05) contrast(1.05) saturate(1.1) ';
+    if (s.lighting === 'dramatic') filterString += 'contrast(1.2) brightness(0.95) ';
+
+    switch(s.colorGrade) {
+        case 'cinematic': filterString += 'saturate(1.2) contrast(1.1) '; break;
+        case 'vintage': filterString += 'sepia(0.4) saturate(1.2) contrast(0.9) brightness(1.05) '; break;
+        case 'noir': filterString += 'grayscale(1) contrast(1.3) brightness(0.9) '; break;
+        case 'vibrant': filterString += 'saturate(1.5) contrast(1.1) '; break;
+    }
+    return filterString.trim();
+};
+
+
+export const useAVProcessor = ({ settings, brandKit }: AVProcessorProps) => {
     const [rawStream, setRawStream] = React.useState<MediaStream | null>(null);
     const [processedStream, setProcessedStream] = React.useState<MediaStream | null>(null);
     const [isRecording, setIsRecording] = React.useState(false);
@@ -32,6 +59,21 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
     const audioContextRef = React.useRef<AudioContext | null>(null);
     const audioAnalyserRef = React.useRef<AnalyserNode | null>(null);
     const lastAnalysisTime = React.useRef(0);
+    const logoImageRef = React.useRef<HTMLImageElement | null>(null); // NEW for Brand Kit logo
+
+    // NEW: Effect to load the brand logo into an Image element for canvas drawing
+    React.useEffect(() => {
+        if (brandKit.logo) {
+            const img = new Image();
+            img.onload = () => {
+                logoImageRef.current = img;
+            };
+            img.src = brandKit.logo;
+        } else {
+            logoImageRef.current = null;
+        }
+    }, [brandKit.logo]);
+
 
     const getVideoDevices = React.useCallback(async () => {
         try {
@@ -39,11 +81,18 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
                 console.log("enumerateDevices() not supported.");
                 return;
             }
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); // Request permission first
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoInputs = devices.filter(device => device.kind === 'videoinput');
             setVideoDevices(videoInputs.map(device => ({ deviceId: device.deviceId, label: device.label })));
+            
+            // FIX: Use a functional update to safely set the initial device ID without creating a dependency loop.
+            // This ensures that an existing selection isn't overridden, but an initial one is set.
+            setSelectedDeviceId(currentId => currentId || videoInputs[0]?.deviceId);
+
         } catch (err) {
             console.error("Error enumerating devices:", err);
+            setError("Could not access camera/mic. Please grant permission and try again.");
         }
     }, []);
 
@@ -52,7 +101,7 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
             rawStream.getTracks().forEach(track => track.stop());
         }
         try {
-            const { width, height } = getIdealDimensions(settings.exportQuality);
+            const { width, height } = getIdealDimensions(settings.exportQuality, settings.performanceMode);
             let audioDeviceId: string | undefined = undefined;
 
             if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -69,6 +118,7 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
                     width: { ideal: width }, 
                     height: { ideal: height },
                     deviceId: deviceId ? { exact: deviceId } : undefined,
+                    advanced: [{ focusMode: 'continuous' } as any],
                 },
                 audio: {
                     deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
@@ -84,31 +134,57 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
             console.error("Error accessing media devices.", err);
             setError("Could not access camera/mic. Please grant permission and try again.");
         }
-    }, [settings.exportQuality, rawStream]);
+    }, [settings.exportQuality, settings.performanceMode, rawStream]);
 
-    const startCamera = React.useCallback(() => {
-        getVideoDevices();
-        getMediaStream(selectedDeviceId);
-    }, [getMediaStream, getVideoDevices, selectedDeviceId]);
+    const startCamera = React.useCallback(async () => {
+        await getVideoDevices();
+        // The useEffect listening to selectedDeviceId will now reliably trigger getMediaStream.
+    }, [getVideoDevices]);
+    
+    React.useEffect(() => {
+        // This effect runs when selectedDeviceId is set by startCamera, triggering the stream.
+        if (selectedDeviceId) {
+             getMediaStream(selectedDeviceId);
+        }
+    }, [selectedDeviceId, getMediaStream]);
 
-    const switchCamera = React.useCallback(() => {
-        if (videoDevices.length > 1) {
+
+    const switchCamera = React.useCallback((deviceId?: string) => {
+        let nextDeviceId = deviceId;
+        if (!deviceId && videoDevices.length > 1) {
             const currentIndex = videoDevices.findIndex(d => d.deviceId === selectedDeviceId);
             const nextIndex = (currentIndex + 1) % videoDevices.length;
-            const nextDeviceId = videoDevices[nextIndex].deviceId;
-            setSelectedDeviceId(nextDeviceId);
-            getMediaStream(nextDeviceId);
+            nextDeviceId = videoDevices[nextIndex].deviceId;
         }
-    }, [videoDevices, selectedDeviceId, getMediaStream]);
+        
+        if (nextDeviceId && nextDeviceId !== selectedDeviceId) {
+            setSelectedDeviceId(nextDeviceId);
+            // The useEffect listening to selectedDeviceId will trigger getMediaStream
+        }
+    }, [videoDevices, selectedDeviceId]);
 
     React.useEffect(() => {
         return () => {
             rawStream?.getTracks().forEach(track => track.stop());
-            audioContextRef.current?.close();
+            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+                audioContextRef.current.close();
+            }
         };
     }, [rawStream]);
     
-    // Real-time processing loop (lightweight effects only)
+    const playVideoWhenReady = React.useCallback(() => {
+        const video = videoRef.current;
+        if (video.paused) {
+            video.play().catch(e => {
+                if (e.name !== 'AbortError') {
+                    console.error("Video play failed", e);
+                }
+            });
+        }
+    }, []);
+
+
+    // Real-time processing loop
     React.useEffect(() => {
         if (!rawStream) return;
         
@@ -120,9 +196,9 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
         if (video.srcObject !== rawStream) {
             video.srcObject = rawStream;
             video.muted = true;
-        }
-        if (video.paused) {
-            video.play().catch(e => console.error("Video play failed", e));
+            video.addEventListener('loadedmetadata', playVideoWhenReady);
+        } else {
+            playVideoWhenReady();
         }
         
         const animate = () => {
@@ -134,9 +210,10 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
+            ctx.filter = buildLiveFilterString(settings);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.filter = 'none';
 
-            // Lightweight real-time effects
             if (settings.background.mode === 'vignette') {
                 const gradient = ctx.createRadialGradient(
                     canvas.width / 2, canvas.height / 2, canvas.height / 3,
@@ -148,12 +225,22 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
             
-            if (settings.watermark) {
-                ctx.font = 'bold 24px Inter, sans-serif';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            // NEW: Render brand logo or text watermark
+            const watermarkPadding = canvas.width * 0.04;
+            ctx.globalAlpha = 0.7;
+            if (logoImageRef.current) {
+                const logoHeight = canvas.height * 0.05;
+                const logoWidth = (logoImageRef.current.width / logoImageRef.current.height) * logoHeight;
+                ctx.drawImage(logoImageRef.current, canvas.width - logoWidth - watermarkPadding, canvas.height - logoHeight - watermarkPadding, logoWidth, logoHeight);
+            } else if (settings.watermark) {
+                const fontSize = canvas.width * 0.03;
+                ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
                 ctx.textAlign = 'right';
-                ctx.fillText(settings.watermark, canvas.width - 20, canvas.height - 20);
+                ctx.fillText(settings.watermark, canvas.width - watermarkPadding, canvas.height - watermarkPadding);
             }
+            ctx.globalAlpha = 1.0;
+
 
             // Technical Analysis (throttled)
             const now = Date.now();
@@ -196,7 +283,7 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
         animate();
         
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-             audioContextRef.current = new AudioContext();
+             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
         const audioContext = audioContextRef.current;
         const audioSource = audioContext.createMediaStreamSource(rawStream);
@@ -236,10 +323,11 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
         setProcessedStream(canvasStream);
 
         return () => {
+            video.removeEventListener('loadedmetadata', playVideoWhenReady);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
         };
 
-    }, [rawStream, settings.background.mode, settings.watermark, settings.autoLeveling, settings.noiseReduction]);
+    }, [rawStream, settings, playVideoWhenReady, brandKit.logo]);
 
 
     const generateEffectsPreview = React.useCallback(async (): Promise<string> => {
@@ -250,8 +338,10 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
             throw new Error("Preview generation failed: video not ready.");
         }
 
-        previewCanvas.width = video.videoWidth;
-        previewCanvas.height = video.videoHeight;
+        const PREVIEW_MAX_WIDTH = 480;
+        const aspectRatio = video.videoWidth / video.videoHeight;
+        previewCanvas.width = PREVIEW_MAX_WIDTH;
+        previewCanvas.height = PREVIEW_MAX_WIDTH / aspectRatio;
         
         let filterString = '';
         if(settings.skinTone === 'warm') filterString += 'sepia(0.2) saturate(1.1) ';
@@ -290,15 +380,25 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
             ctx.globalCompositeOperation = 'source-over';
         }
         
-        if (settings.watermark) {
-            ctx.font = 'bold 24px Inter, sans-serif';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        // NEW: Render brand logo or text watermark in preview
+        const watermarkPadding = previewCanvas.width * 0.04;
+        ctx.globalAlpha = 0.7;
+        if (logoImageRef.current) {
+            const logoHeight = previewCanvas.height * 0.05;
+            const logoWidth = (logoImageRef.current.width / logoImageRef.current.height) * logoHeight;
+            ctx.drawImage(logoImageRef.current, previewCanvas.width - logoWidth - watermarkPadding, previewCanvas.height - logoHeight - watermarkPadding, logoWidth, logoHeight);
+        } else if (settings.watermark) {
+            const fontSize = previewCanvas.width * 0.04;
+            ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.textAlign = 'right';
-            ctx.fillText(settings.watermark, previewCanvas.width - 20, previewCanvas.height - 20);
+            ctx.fillText(settings.watermark, previewCanvas.width - watermarkPadding, previewCanvas.height - watermarkPadding);
         }
+        ctx.globalAlpha = 1.0;
+
 
         return previewCanvas.toDataURL('image/jpeg', 0.9);
-    }, [settings]);
+    }, [settings, brandKit.logo]);
 
 
     const startRecording = () => {
@@ -343,6 +443,7 @@ export const useAVProcessor = ({ settings }: AVProcessorProps) => {
         startCamera,
         switchCamera,
         videoDevices,
+        selectedDeviceId,
         generateEffectsPreview,
     };
 };

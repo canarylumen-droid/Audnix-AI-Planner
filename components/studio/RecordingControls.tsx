@@ -8,10 +8,11 @@ interface RecordingControlsProps {
     onStop: () => void;
     onSave: () => void;
     onDiscard: () => void;
+    isCountingDown?: boolean;
 }
 
 // FIX: Implemented the RecordingControls component for user interaction.
-export const RecordingControls: React.FC<RecordingControlsProps> = ({ isRecording, recordedBlob, onStart, onStop, onSave, onDiscard }) => {
+export const RecordingControls: React.FC<RecordingControlsProps> = ({ isRecording, recordedBlob, onStart, onStop, onSave, onDiscard, isCountingDown }) => {
     if (recordedBlob) {
         return (
             <div className="flex items-center justify-center gap-4">
@@ -35,7 +36,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({ isRecordin
         <div className="flex items-center justify-center">
             <button
                 onClick={isRecording ? onStop : onStart}
-                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-200 hover:bg-white'}`}
+                disabled={isCountingDown}
+                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-200 hover:bg-white'} ${isCountingDown ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label={isRecording ? 'Stop recording' : 'Start recording'}
             >
                 <div className={`transition-all duration-200 ${isRecording ? 'w-8 h-8 bg-white rounded-md' : 'w-14 h-14 bg-red-500 rounded-full'}`} />

@@ -1,378 +1,461 @@
 // services/geminiService.ts
-import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { BrainstormResult, CampaignPlan, ContentPlan, HeadshotConfig, RefinedScriptResult, VideoAnalysisResult } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { 
+    ContentPlan, 
+    BrainstormResult, 
+    VideoAnalysisResult, 
+    InlineDataPart, 
+    SocialContentResult, 
+    HeadshotConfig, 
+    CampaignPlan,
+    PerformanceAnalysis,
+    TopicValidationResult,
+    CompetitorAnalysisResult
+} from '../types';
 
-const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY! });
+let ai: GoogleGenAI;
 
-let apiErrorHandler: (() => void) | null = null;
-export const registerApiErrorHandler = (handler: () => void) => {
-    apiErrorHandler = handler;
-};
-
-const handleError = (error: unknown, context: string): never => {
-    console.error(`Error ${context}:`, error);
-    if (error instanceof Error && (error.message.includes('PERMISSION_DENIED') || error.message.includes('API key not valid'))) {
-        apiErrorHandler?.();
+// Initialize the AI client
+const getAiClient = () => {
+    if (!ai) {
+        if (!process.env.API_KEY) {
+            throw new Error("API key is not configured. Please add it to your environment variables.");
+        }
+        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     }
-    throw new Error(`Failed to ${context}. ${error instanceof Error ? error.message : 'An unexpected error occurred.'}`);
+    return ai;
 };
 
+async function callGeminiAndParseJson<T>(model: 'gemini-2.5-pro' | 'gemini-2.5-flash', prompt: string, schema?: any, useSearch: boolean = false): Promise<T> {
+    const aiClient = getAiClient();
+    try {
+        const config: any = {};
+        let finalPrompt = prompt;
+        
+        // FIX: Conditionally set the config. The API does not allow `tools` and `responseMimeType: 'application/json'` together.
+        if (useSearch) {
+            config.tools = [{ googleSearch: {} }];
+            // The prompt must instruct the model to return JSON when using search.
+            finalPrompt += "\n\nCRITICAL: Your final output must be ONLY the JSON object described in the prompt, with no extra text or markdown formatting."
+        } else {
+            config.responseMimeType = 'application/json';
+            config.responseSchema = schema;
+        }
 
-const contentPlanSchema = {
-    type: Type.OBJECT,
-    properties: {
-        title: { type: Type.STRING, description: 'A catchy, viral-optimized title for a short-form video (e.g., TikTok, Reels, Shorts).' },
-        hook: { type: Type.STRING, description: 'An incredibly strong, scroll-stopping opening line (first 3 seconds) based on deep research of what works for the topic.' },
-        introduction: { type: Type.STRING, description: 'A brief introduction that sets the stage for the video\'s topic.' },
-        mainPoints: {
-            type: Type.ARRAY,
-            description: 'A list of 2-4 key points or segments that form the body of the video.',
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    point: { type: Type.STRING, description: 'The main idea of the segment.' },
-                    details: { type: Type.STRING, description: 'A brief elaboration on the point.' }
-                },
-                required: ['point', 'details'],
+        const response = await aiClient.models.generateContent({
+            model: model,
+            contents: [{ parts: [{ text: finalPrompt }] }],
+            config: config,
+        });
+
+        let jsonText = response.text.trim();
+        
+        // Clean up markdown code block if present
+        if (jsonText.startsWith('```json')) {
+            jsonText = jsonText.substring(7);
+            if (jsonText.endsWith('```')) {
+                jsonText = jsonText.substring(0, jsonText.length - 3);
             }
-        },
-        conclusion: { type: Type.STRING, description: 'A summary that wraps up the video\'s message.' },
-        cta: { type: Type.STRING, description: 'A clear call to action, like "Follow for more!" or "Comment your thoughts below!"' },
-        visualSuggestions: {
-            type: Type.ARRAY,
-            description: 'A list of ideas for visuals, b-roll, or on-screen text to enhance engagement.',
-            items: { type: Type.STRING }
-        },
-        script: { type: Type.STRING, description: 'A complete, ready-to-read script combining the hook, intro, main points, conclusion, and CTA into a single flowing narrative.' },
-        captions: {
-            type: Type.ARRAY,
-            description: 'A list of 3 short, punchy caption options for the video.',
-            items: { type: Type.STRING }
-        },
-        hashtags: {
-            type: Type.ARRAY,
-            description: 'A list of 3-5 relevant hashtags to improve discoverability.',
-            items: { type: Type.STRING }
-        },
-        suggestedDuration: { type: Type.STRING, description: 'The optimal video duration (e.g., "15-20 seconds") based on platform best practices for the topic.' }
-    },
-    required: ['title', 'hook', 'introduction', 'mainPoints', 'conclusion', 'cta', 'visualSuggestions', 'script', 'captions', 'hashtags', 'suggestedDuration']
-};
-
-const brainstormResultSchema = {
-    type: Type.OBJECT,
-    properties: {
-        contentIdeas: { 
-            type: Type.ARRAY, 
-            description: 'A list of 3-5 creative and specific content ideas.',
-            items: { type: Type.STRING } 
-        },
-        uniqueAngles: { 
-            type: Type.ARRAY, 
-            description: 'A list of 2-3 unique angles or perspectives on the topic to make the content stand out.',
-            items: { type: Type.STRING } 
-        },
-        trendingTopics: { 
-            type: Type.ARRAY,
-            description: 'A list of 2-3 related trending topics or keywords to increase relevance and reach.',
-            items: { type: Type.STRING } 
         }
-    },
-    required: ['contentIdeas', 'uniqueAngles', 'trendingTopics']
-};
-
-const videoAnalysisSchema = {
-    type: Type.OBJECT,
-    properties: {
-        analysis: {
-            type: Type.OBJECT,
-            properties: {
-                hook: {
-                    type: Type.OBJECT,
-                    properties: {
-                        rating: { type: Type.NUMBER, description: 'Rating from 1-100 for the video\'s hook effectiveness.' },
-                        detailedFeedback: { type: Type.STRING, description: 'Provide a detailed, timestamped (e.g., **0-3s:**, **4-10s:**) analysis with specific, actionable feedback on how to improve the hook for virality.' }
-                    },
-                    required: ['rating', 'detailedFeedback']
-                },
-                storytelling: {
-                    type: Type.OBJECT,
-                    properties: {
-                        rating: { type: Type.NUMBER, description: 'Rating from 1-100 for the video\'s storytelling and engagement.' },
-                        detailedFeedback: { type: Type.STRING, description: 'Provide a detailed, timestamped analysis with feedback on the pacing, narrative, and body of the video.' }
-                    },
-                    required: ['rating', 'detailedFeedback']
-                },
-                cta: {
-                    type: Type.OBJECT,
-                    properties: {
-                        rating: { type: Type.NUMBER, description: 'Rating from 1-100 for the effectiveness of the call to action.' },
-                        detailedFeedback: { type: Type.STRING, description: 'Provide a detailed, timestamped analysis with feedback on the CTA\'s clarity and power.' }
-                    },
-                     required: ['rating', 'detailedFeedback']
-                }
-            },
-            required: ['hook', 'storytelling', 'cta']
-        },
-        enhancedScript: {
-            type: Type.OBJECT,
-            properties: {
-                script: { type: Type.STRING, description: 'A new, powerfully enhanced script combining the user\'s input, video analysis, and competitive research.' },
-                hook: { type: Type.OBJECT, properties: { rating: { type: Type.NUMBER } }, required: ['rating']},
-                storytelling: { type: Type.OBJECT, properties: { rating: { type: Type.NUMBER } }, required: ['rating']},
-                cta: { type: Type.OBJECT, properties: { rating: { type: Type.NUMBER } }, required: ['rating']},
-            },
-            required: ['script', 'hook', 'storytelling', 'cta']
+        
+        return JSON.parse(jsonText) as T;
+    } catch (error) {
+        console.error("Error calling Gemini API:", error);
+        if (error instanceof Error) {
+            if (error.message.includes('API key not valid')) {
+                 throw new Error(`Invalid API Key: Please ensure your API key is correctly configured.`);
+            }
+            if (error.message.toLowerCase().includes('json')) {
+                console.error("Gemini response was likely not valid JSON");
+                throw new Error(`Gemini API Error: Failed to parse JSON response. The model may have returned improperly formatted text.`);
+            }
+            throw new Error(`Gemini API Error: ${error.message}`);
         }
-    },
-    required: ['analysis', 'enhancedScript']
+        throw new Error("An unknown error occurred while communicating with the Gemini API.");
+    }
 }
 
-const refinedScriptSchema = {
-    type: Type.OBJECT,
-    properties: {
-        enhancedScript: { 
-            type: Type.STRING, 
-            description: 'A new, powerfully enhanced script that is significantly better than the original, optimized for virality on short-form video platforms.'
-        },
-    },
-    required: ['enhancedScript']
-};
 
-const campaignPlanSchema = {
-    type: Type.OBJECT,
-    properties: {
-        objective: { type: Type.STRING, description: 'A single, clear objective for the 7-day launch campaign.' },
-        days: {
-            type: Type.ARRAY,
-            description: 'A list of 7 daily content plans.',
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    day: { type: Type.NUMBER, description: 'The day number (1-7).' },
-                    topic: { type: Type.STRING, description: 'The specific, engaging video topic for the day.' },
-                    goal: { type: Type.STRING, description: 'The primary goal for this day\'s content (e.g., "Build Awareness," "Drive Engagement," "Educate Audience").' }
-                },
-                required: ['day', 'topic', 'goal']
-            }
-        }
-    },
-    required: ['objective', 'days']
-};
+export const generateContentPlan = async (topic: string, videoStyle: string, targetAudience: string, brandBio: string): Promise<ContentPlan> => {
+    const prompt = `
+        You are an expert viral video content strategist. Create a complete content plan for a short-form video (like TikTok, Reels, YouTube Shorts).
 
-export const generateContentPlan = async (topic: string, videoStyle: string, targetAudience: string): Promise<ContentPlan> => {
-     const prompt = `
-        You are a viral video strategist. Create a detailed content plan for a short-form vertical video.
-        The video must be hyper-optimized for virality and audience retention. Analyze social media trends for the topic to determine the absolute best video duration for maximum engagement.
+        **Video Topic:** "${topic}"
+        **Video Style/Tone:** ${videoStyle}
+        **Target Audience:** ${targetAudience}
+        **Brand Bio/Voice:** "${brandBio}"
 
-        Video Topic: "${topic}"
-        Desired Style/Tone: "${videoStyle}"
-        Target Audience: "${targetAudience}"
-
-        Follow these critical instructions:
-        1.  **Hook**: The first 3 seconds are everything. Generate a hook that is so powerful it's impossible to scroll past. Use deep research to find what works for this niche. It MUST be specific and non-generic.
-        2.  **Storytelling & Body**: Weave points into a compelling narrative. Maintain high energy.
-        3.  **Call to Action (CTA)**: Make the CTA powerful and direct (e.g., "Comment 'BOOST' if you want the full guide").
-        4.  **Duration**: Based on your research, state the optimal video duration for this content.
-        
-        Generate a complete plan based on the provided schema.
+        Your output must be a JSON object that strictly follows this schema, providing rich and detailed content for every field.
     `;
-    try {
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { responseMimeType: 'application/json', responseSchema: contentPlanSchema }
-        });
-        return JSON.parse(response.text.trim()) as ContentPlan;
-    } catch (error) {
-        handleError(error, 'generate content plan');
-    }
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING },
+            hook: { type: Type.STRING },
+            introduction: { type: Type.STRING },
+            mainPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+            conclusion: { type: Type.STRING },
+            cta: { type: Type.STRING },
+            script: { type: Type.STRING },
+            visualSuggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            captions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } },
+            suggestedDuration: { type: Type.STRING },
+            thumbnailSuggestions: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        concept: { type: Type.STRING },
+                        reason: { type: Type.STRING }
+                    },
+                    required: ['concept', 'reason']
+                }
+            },
+            bRollSuggestions: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        timestamp: { type: Type.STRING },
+                        suggestion: { type: Type.STRING }
+                    },
+                    required: ['timestamp', 'suggestion']
+                }
+            }
+        },
+        required: ['title', 'hook', 'script', 'captions', 'hashtags', 'thumbnailSuggestions', 'bRollSuggestions']
+    };
+
+    return callGeminiAndParseJson<ContentPlan>('gemini-2.5-pro', prompt, schema);
 };
+
+
+export const spyOnCompetitor = async (videoUrl: string, userIdea: string): Promise<CompetitorAnalysisResult> => {
+    const prompt = `
+        You are a world-class viral video analyst. Your task is to analyze a competitor's video from a public URL and synthesize a superior script for the user.
+
+        **CRITICAL INSTRUCTIONS:**
+        1.  **Use your search tool** to find information about the video at this URL: **${videoUrl}**
+        2.  Find the video's title, description, and, most importantly, **its full transcript or captions**.
+        3.  Analyze the transcript to understand the video's structure, pacing, and message.
+        4.  Based on your analysis, provide a strategic breakdown.
+        5.  The user has provided their own idea or angle: "${userIdea || 'No specific idea provided. Base your script purely on outperforming the competitor.'}"
+        6.  Finally, create a new, superior 'enhancedScript' that combines the competitor's successful formula with the user's unique angle.
+
+        Your output must be a single JSON object with the following structure:
+        {
+          "reconstructedScript": "<The full transcript of the competitor's video you found>",
+          "hookAnalysis": {
+            "hook": "<The first 3-5 seconds of their script>",
+            "score": <A score from 1-100 on the hook's effectiveness>,
+            "explanation": "<Why the hook is effective or not>"
+          },
+          "secretFormula": [
+            {"title": "<Strategic Element 1, e.g., 'Fast Pacing'>", "description": "<Explanation of how they used it>"},
+            {"title": "<Strategic Element 2, e.g., 'Relatable Problem'>", "description": "<Explanation>"}
+          ],
+          "enhancedScript": "<The new, superior script you've written for the user>"
+        }
+    `;
+    
+    // We pass null for schema because we are using search and can't use responseSchema together. The prompt itself defines the JSON.
+    return callGeminiAndParseJson<CompetitorAnalysisResult>('gemini-2.5-pro', prompt, null, true);
+};
+
 
 export const brainstormIdeas = async (topic: string, videoStyle: string, targetAudience: string): Promise<BrainstormResult> => {
     const prompt = `
-        Brainstorm viral ideas for a short-form video (TikTok, Reels).
-        Topic: "${topic}", Style: "${videoStyle}", Audience: "${targetAudience}".
-        Generate creative content ideas, unique angles, and related trending topics.
+        You are a viral content ideator. Brainstorm ideas related to the central topic.
+
+        **Central Topic:** "${topic}"
+        **Video Style/Tone:** ${videoStyle}
+        **Target Audience:** ${targetAudience}
+
+        Provide your output as a JSON object with three keys: "contentIdeas", "uniqueAngles", "trendingTopics".
     `;
-    try {
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { responseMimeType: 'application/json', responseSchema: brainstormResultSchema }
-        });
-        return JSON.parse(response.text.trim()) as BrainstormResult;
-    } catch (error) {
-        handleError(error, 'brainstorm ideas');
-    }
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            contentIdeas: { type: Type.ARRAY, items: { type: Type.STRING } },
+            uniqueAngles: { type: Type.ARRAY, items: { type: Type.STRING } },
+            trendingTopics: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['contentIdeas', 'uniqueAngles', 'trendingTopics']
+    };
+
+    return callGeminiAndParseJson<BrainstormResult>('gemini-2.5-flash', prompt, schema);
 };
 
-export const analyzeAndEnhanceScript = async (video: { data: string, mimeType: string }, userScript: string): Promise<VideoAnalysisResult> => {
+export const analyzeAndEnhanceScript = async (video: InlineDataPart, userScript: string): Promise<VideoAnalysisResult> => {
+    const aiClient = getAiClient();
     const prompt = `
-        You are an expert viral video analyst.
-        1.  **Analyze the provided video**: Provide a detailed, almost frame-by-frame analysis. Break down your feedback by timestamps (e.g., **0-3s:**, **4-10s:**). Identify the most powerful 3-second hook within the video. Rate the hook, storytelling, and CTA from 1-100.
-        2.  **Research**: Based on the video's topic, perform a quick mental search of what makes similar videos go viral on platforms like TikTok and Reels.
-        3.  **Enhance**: Take the user's raw script notes: "${userScript}".
-        4.  **Synthesize**: Combine your analysis, research, and the user's notes into a new, powerful, complete video script. This new script should be significantly better.
-        5.  **Rate the New Script**: Rate the hook, storytelling, and CTA of your new script from 1-100.
-        
-        Provide the full output in the specified JSON format.
+        As a world-class video analyst and scriptwriter, analyze the provided video and enhance the user's script notes.
+        The user wants to create a better, more viral video inspired by the one provided.
+
+        **User's Script Notes/Ideas:**
+        "${userScript}"
+
+        First, analyze the provided video across several metrics. Provide a rating from 1-100 and detailed feedback for each.
+        - **Hook:** How well does it grab attention in the first 3 seconds?
+        - **Pacing:** Is the video well-paced? Too fast, too slow?
+        - **Engagement:** How well does it hold attention? Are there lulls?
+        - **Clarity:** Is the message clear and easy to understand?
+        - **Visuals:** How effective are the visuals and on-screen elements?
+
+        Second, based on your analysis and the user's notes, write a new, superior script. This script should incorporate the user's ideas but be optimized for maximum engagement and virality. Also, provide ratings (1-100) and brief feedback on the new script's hook, storytelling, and CTA.
+
+        Your output must be a single JSON object with the specified "analysis" and "enhancedScript" structure.
     `;
-     try {
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
+
+    try {
+        const response = await aiClient.models.generateContent({
             model: 'gemini-2.5-pro',
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: video.mimeType, data: video.data }},
-                    { text: prompt }
-                ]
-            },
-            config: { responseMimeType: 'application/json', responseSchema: videoAnalysisSchema }
+            contents: [{ parts: [video, { text: prompt }] }],
+            config: {
+                responseMimeType: 'application/json'
+            }
         });
-        return JSON.parse(response.text.trim()) as VideoAnalysisResult;
-    } catch (error) {
-        handleError(error, 'analyze video and enhance script');
-    }
-}
 
-export const refineScript = async (script: string): Promise<RefinedScriptResult> => {
+        const jsonText = response.text.trim();
+        return JSON.parse(jsonText) as VideoAnalysisResult;
+    } catch (error) {
+        console.error("Error in analyzeAndEnhanceScript:", error);
+        throw new Error("Failed to analyze the video and enhance the script.");
+    }
+};
+
+export const generateFinalPlan = async (brainstorm: BrainstormResult, analysis: VideoAnalysisResult, userScript: string): Promise<ContentPlan> => {
     const prompt = `
-        You are an expert viral video scriptwriter for platforms like TikTok and Instagram Reels.
-        Your task is to take the user's raw script and enhance it to be more engaging, punchy, and optimized for high audience retention.
+        You are an expert content strategist. A user has performed brainstorming and competitive analysis. Your task is to synthesize all this information into a single, ultimate content plan.
 
-        Here is the script you need to improve:
-        ---
-        ${script}
-        ---
+        **Initial Brainstorming Ideas:**
+        - Content Ideas: ${brainstorm.contentIdeas.join(', ')}
+        - Unique Angles: ${brainstorm.uniqueAngles.join(', ')}
 
-        Follow these instructions:
-        1.  **Strengthen the Hook:** Rewrite the first 3 seconds to be absolutely scroll-stopping.
-        2.  **Improve Flow & Pacing:** Make sure the script flows well and maintains energy. Cut any fluff.
-        3.  **Punch Up the Language:** Use stronger verbs, more vivid language, and a conversational tone.
-        4.  **Add a Powerful CTA:** Ensure the script ends with a clear and compelling call to action.
-        5.  **Return Only the Script:** Provide only the full, enhanced script text in the response.
+        **Competitive Analysis & Enhanced Script:**
+        - First draft of enhanced script: "${analysis.enhancedScript.script}"
+        - User's original notes: "${userScript}"
 
-        Generate the enhanced script based on the provided schema.
+        Synthesize all of the above to create the best possible content plan. Produce a JSON object matching the ContentPlan schema (title, hook, script, captions, etc.).
     `;
-    try {
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { responseMimeType: 'application/json', responseSchema: refinedScriptSchema }
-        });
-        return JSON.parse(response.text.trim()) as RefinedScriptResult;
-    } catch (error) {
-        handleError(error, 'refine script');
-    }
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING },
+            hook: { type: Type.STRING },
+            introduction: { type: Type.STRING },
+            mainPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+            conclusion: { type: Type.STRING },
+            cta: { type: Type.STRING },
+            script: { type: Type.STRING },
+            visualSuggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            captions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } },
+            suggestedDuration: { type: Type.STRING },
+        },
+        required: ['title', 'hook', 'script', 'captions', 'hashtags']
+    };
+    return callGeminiAndParseJson<ContentPlan>('gemini-2.5-pro', prompt, schema);
 };
 
-export const generateCampaignPlan = async (brandInfo: string, productInfo: string, goal: string): Promise<CampaignPlan> => {
+export const refineScript = async (script: string): Promise<{ enhancedScript: string }> => {
     const prompt = `
-        You are a professional social media launch strategist. The user is launching a new brand/product for the first time on social media (Instagram, TikTok).
-        Create a 7-day content plan to build hype, educate the audience, and drive initial engagement.
+        You are a master script editor. Refine this video script to be more concise, impactful, and engaging for a short-form video audience.
 
-        **Brand Information:** ${brandInfo}
-        **Product/Service Information:** ${productInfo}
-        **Primary Goal:** ${goal}
+        **Original Script:**
+        "${script}"
 
-        For each of the 7 days, provide a specific video topic and the goal for that day's content. The topics should be creative, engaging, and build on each other to tell a story over the week.
-        The overall objective should summarize the entire 7-day strategy.
-        Generate the plan based on the provided JSON schema.
+        Return a JSON object with a single key "enhancedScript" containing the refined script.
     `;
-    try {
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: { responseMimeType: 'application/json', responseSchema: campaignPlanSchema }
-        });
-        return JSON.parse(response.text.trim()) as CampaignPlan;
-    } catch (error) {
-        handleError(error, 'generate campaign plan');
-    }
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            enhancedScript: { type: Type.STRING }
+        },
+        required: ['enhancedScript']
+    };
+    return callGeminiAndParseJson<{ enhancedScript: string }>('gemini-2.5-flash', prompt, schema);
 };
 
+export const generateSocialContent = async (transcript: string, title: string): Promise<SocialContentResult> => {
+    const prompt = `
+        Based on the transcript and title of a finished video, generate 3 engaging captions and 15 relevant hashtags.
 
-const getBlurDescription = (blurValue: number): string => {
-    if (blurValue <= 0.1) return 'The background should be sharp and in focus.';
-    if (blurValue <= 0.4) return 'The background should be subtly blurred to keep the focus on the person.';
-    if (blurValue <= 0.7) return 'The background should be moderately blurred (bokeh effect).';
-    return 'The background should be heavily blurred, making it abstract.';
+        **Video Title:** "${title}"
+        **Video Transcript:** "${transcript}"
+
+        Generate a JSON object with two keys: "captions" (an array of strings) and "hashtags" (an array of strings).
+    `;
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            captions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['captions', 'hashtags']
+    };
+    return callGeminiAndParseJson<SocialContentResult>('gemini-2.5-flash', prompt, schema);
 };
 
-export const generateHeadshot = async (
-    base64Image: string,
-    config: HeadshotConfig
-): Promise<string> => {
-    const blurInstruction = getBlurDescription(config.backgroundBlur);
-    let prompt = '';
-    // FIX: Corrected the type of `parts` to be a union of image and text part objects.
-    const parts: ({ inlineData: { mimeType: string, data: string } } | { text: string })[] = [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+export const generateHeadshot = async (base64Image: string, config: HeadshotConfig): Promise<string> => {
+    const aiClient = getAiClient();
+    const clothingPrompt = config.clothing.enabled
+        ? `The person should be wearing a ${config.clothing.style} in the color ${config.clothing.color}.`
+        : "Keep the person's clothing as it is in the original photo.";
+
+    const backgroundPrompt = config.background === 'Custom' && config.customBackground
+        ? "Use the provided background image."
+        : `Place the person in a professional '${config.background}' setting.`;
+
+    const promptParts: (object)[] = [
+        { text: "You are an expert headshot photographer. Transform the provided image into a professional-grade headshot based on the following instructions." },
+        { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
+        { text: `
+            **Instructions:**
+            1.  **Background:** ${backgroundPrompt} The background should have a blur effect with an intensity of approximately ${config.backgroundBlur * 100}%.
+            2.  **Lighting:** The lighting should be flattering, in the style of '${config.lighting}'.
+            3.  **Clothing:** ${clothingPrompt}
+            4.  **Composition:** Crop to a standard head-and-shoulders portrait.
+        `},
     ];
 
-    const commonInstructions = `
-        **CRITICAL INSTRUCTIONS:**
-        1.  **Preserve Identity:** Do NOT alter the user's facial features, structure, or unique characteristics. The result must look exactly like the person in the photo.
-        2.  **Lighting:** Adjust the lighting to be flattering and professional, matching a '${config.lighting}' style. The lighting should look realistic and high-quality.
-        3.  **Composition:** Crop the image to a standard headshot (head and shoulders). The output image should be a square (1:1 aspect ratio).
-        4.  **Quality:** The final image must be high-resolution and sharp.
-    `;
-
     if (config.background === 'Custom' && config.customBackground) {
-        parts.push({ inlineData: { mimeType: 'image/jpeg', data: config.customBackground } });
-        prompt = `
-            You are a professional photo editor. Take the person from the first image and place them seamlessly into the background from the second image. The final result should be a high-quality, professional headshot.
-            ${commonInstructions}
-            5.  **Background:** Use the background from the second image. ${blurInstruction}
-        `;
-    } else {
-        prompt = `
-            Analyze the user's photo and transform it into a high-quality, professional headshot suitable for LinkedIn, Twitter, or a professional profile.
-            ${commonInstructions}
-            5.  **Background:** Replace the original background with a '${config.background}' background. ${blurInstruction}
-        `;
+        promptParts.push({
+            inlineData: {
+                data: config.customBackground.data,
+                mimeType: config.customBackground.mimeType
+            }
+        });
     }
-
-    if (config.clothing.enabled) {
-        prompt += `
-        6.  **Virtual Clothing:** Replace the user's current attire with a '${config.clothing.style}' in a '${config.clothing.color}' color. The clothing must look realistic, fit well, and be appropriate for a professional headshot.
-        `;
-    }
-
-    if (config.highQuality) {
-        prompt += `
-        7.  **High Quality:** The final image must be very high-resolution, sharp, and detailed, suitable for professional use. Produce a photorealistic, studio-quality image.
-        `;
-    }
-
-    parts.push({ text: prompt });
+    
+    const model = 'gemini-2.5-flash-image';
 
     try {
-        const ai = getAiClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: { parts },
+        const response = await aiClient.models.generateContent({
+            model: model,
+            contents: { parts: promptParts },
             config: {
-                responseModalities: [Modality.IMAGE],
+                responseModalities: ['IMAGE'],
             },
         });
-
         for (const part of response.candidates[0].content.parts) {
             if (part.inlineData) {
                 return part.inlineData.data;
             }
         }
-        throw new Error('No image was generated in the response.');
+        throw new Error("No image was generated by the model.");
     } catch (error) {
-        console.error('Error generating headshot:', error);
-        if (error instanceof Error && (error.message.includes('PERMISSION_DENIED') || error.message.includes('API key not valid'))) {
-            apiErrorHandler?.();
-        }
-        throw new Error('Failed to generate headshot. The AI may have refused the request due to safety policies. Please try a different photo.');
+        console.error("Error in generateHeadshot:", error);
+        throw new Error("Failed to generate the headshot.");
     }
+};
+
+export const generateCampaignPlan = async (brandInfo: string, productInfo: string, goal: string): Promise<CampaignPlan> => {
+     const prompt = `
+        You are a social media campaign strategist. Create a 7-day launch campaign plan.
+
+        **Brand Info:** ${brandInfo}
+        **Product/Service:** ${productInfo}
+        **Primary Goal:** ${goal}
+
+        The output should be a JSON object with "objective" and "days".
+    `;
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            objective: { type: Type.STRING },
+            days: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        day: { type: Type.INTEGER },
+                        topic: { type: Type.STRING },
+                        goal: { type: Type.STRING }
+                    },
+                    required: ['day', 'topic', 'goal']
+                }
+            }
+        },
+        required: ['objective', 'days']
+    };
+    return callGeminiAndParseJson<CampaignPlan>('gemini-2.5-flash', prompt, schema);
+};
+
+export const analyzeVideoPerformance = async (title: string, transcript: string, comments: string): Promise<PerformanceAnalysis> => {
+    const prompt = `
+        You are a data-driven video growth consultant. Analyze the performance of a video based on its details.
+
+        **Video Title:** "${title}"
+        **Transcript:** "${transcript}"
+        **Sample Audience Comments:** "${comments || 'No comments provided.'}"
+
+        Provide a detailed analysis as a JSON object with the specified structure.
+    `;
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            viralityPotential: { type: Type.INTEGER },
+            scores: {
+                type: Type.OBJECT,
+                properties: {
+                    hookEffectiveness: { type: Type.INTEGER },
+                    clarity: { type: Type.INTEGER },
+                    engagement: { type: Type.INTEGER },
+                    ctaStrength: { type: Type.INTEGER },
+                },
+                required: ['hookEffectiveness', 'clarity', 'engagement', 'ctaStrength']
+            },
+            audienceSentiment: {
+                type: Type.OBJECT,
+                properties: {
+                    summary: { type: Type.STRING },
+                    commonThemes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                },
+                required: ['summary', 'commonThemes']
+            },
+            keyTakeaways: { type: Type.ARRAY, items: { type: Type.STRING } },
+            improvementSuggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            nextVideoIdeas: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+        required: ['viralityPotential', 'scores', 'audienceSentiment', 'keyTakeaways', 'improvementSuggestions', 'nextVideoIdeas']
+    };
+
+    // This is a complex task, use Pro
+    return callGeminiAndParseJson<PerformanceAnalysis>('gemini-2.5-pro', prompt, schema);
+};
+
+
+export const validateTopic = async (topic: string): Promise<TopicValidationResult> => {
+    const prompt = `
+        As a viral content analyst, evaluate the potential of a video topic.
+
+        **Topic:** "${topic}"
+
+        Provide your analysis as a JSON object with "viralityScore", "swotAnalysis", and "suggestedTopics".
+    `;
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            viralityScore: { type: Type.INTEGER },
+            swotAnalysis: {
+                type: Type.OBJECT,
+                properties: {
+                    strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    opportunities: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    threats: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['strengths', 'weaknesses', 'opportunities', 'threats']
+            },
+            suggestedTopics: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['viralityScore', 'swotAnalysis', 'suggestedTopics']
+    };
+    return callGeminiAndParseJson<TopicValidationResult>('gemini-2.5-flash', prompt, schema);
 };

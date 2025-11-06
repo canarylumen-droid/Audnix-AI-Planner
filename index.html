@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -11,8 +10,206 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <style>
+      html {
+        scroll-behavior: smooth;
+      }
       body {
         font-family: 'Inter', sans-serif;
+        --bg-color: #030712; /* gray-950 */
+        --card-bg-color: #111827; /* gray-900 */
+        --border-color: #1f2937; /* gray-800 */
+        /* NEW Vibrant Color Palette */
+        --glow-color-1: #2dd4bf; /* teal-400 */
+        --glow-color-2: #a78bfa; /* violet-400 */
+        --glow-color-3: #f472b6; /* pink-400 */
+        background-color: var(--bg-color);
+        /* NEW: Improved Readability */
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      /* --- Animated Glow Card Effect --- */
+      .glow-card {
+        position: relative;
+        background-color: var(--card-bg-color);
+        border: 1px solid var(--border-color);
+        transition: background-color 0.3s, border-color 0.3s, transform 0.3s;
+      }
+      .glow-card:hover {
+        border-color: #374151; /* gray-700 */
+        transform: translateY(-4px);
+      }
+      .glow-card::before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border-radius: 0.75rem; /* Matches rounded-lg */
+        background: radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), var(--glow-color-1), var(--glow-color-2), var(--glow-color-3), transparent 80%);
+        z-index: -1;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+      }
+      .glow-card:hover::before {
+        opacity: 0.3;
+      }
+      
+      /* --- Custom Animations --- */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-slow {
+        animation: fadeIn 0.8s ease-out forwards;
+      }
+      /* Intersection Observer Animations */
+      .scroll-animate {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+      }
+      .scroll-animate.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      /* Staggered animation for children */
+      .stagger-children > * {
+        transition-delay: var(--stagger-delay, 0s);
+      }
+
+
+      /* --- Custom Scrollbar --- */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1f2937; /* gray-800 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #374151; /* gray-700 */
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #4b5563; /* gray-600 */
+      }
+
+      /* --- SaaS UI Kit --- */
+      .saas-input {
+        background-color: #030712; /* gray-950 */
+        border: 1px solid #374151; /* gray-700 */
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        color: #f3f4f6; /* gray-100 */
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .saas-input:focus {
+        outline: none;
+        border-color: var(--glow-color-2);
+        box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.3);
+      }
+       .saas-button-primary {
+        background-image: linear-gradient(to right, var(--glow-color-1), var(--glow-color-2), var(--glow-color-3));
+        background-size: 200% auto;
+        color: #ffffff;
+        font-weight: 700;
+        padding: 0.75rem 1.5rem;
+        border-radius: 9999px;
+        transition: all 0.3s ease-in-out;
+        box-shadow: 0 4px 20px 0 rgba(167, 139, 250, 0.25);
+      }
+      .saas-button-primary:hover {
+        background-position: right center;
+        transform: scale(1.03);
+      }
+      .saas-button-primary:disabled {
+        background-image: none;
+        background-color: #374151; /* gray-700 */
+        color: #6b7280; /* gray-500 */
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      /* Custom Select */
+      .saas-select-container {
+        position: relative;
+      }
+      .saas-select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        width: 100%;
+        cursor: pointer;
+        padding-right: 2.5rem; /* space for arrow */
+      }
+      .saas-select-arrow {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: #9ca3af; /* gray-400 */
+      }
+
+      /* Custom Checkbox */
+      .saas-checkbox-container {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+      }
+      .saas-checkbox {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 1.25rem;
+        height: 1.25rem;
+        border: 2px solid #4b5563; /* gray-600 */
+        border-radius: 0.25rem;
+        background-color: #1f2937; /* gray-800 */
+        transition: background-color 0.2s, border-color 0.2s;
+        position: relative;
+        cursor: pointer;
+      }
+      .saas-checkbox:checked {
+        background-color: var(--glow-color-1);
+        border-color: var(--glow-color-1);
+      }
+      .saas-checkbox:checked::after {
+        content: '✔';
+        position: absolute;
+        color: black;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.8rem;
+        font-weight: bold;
+      }
+
+      /* Custom Color Picker */
+      .saas-color-picker-container {
+        position: relative;
+        width: 2.5rem;
+        height: 2.5rem;
+      }
+      .saas-color-picker {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+      }
+      .saas-color-preview {
+        width: 100%;
+        height: 100%;
+        border-radius: 0.375rem;
+        border: 2px solid #4b5563; /* gray-600 */
+        pointer-events: none;
+        transition: border-color 0.2s;
+      }
+      .saas-color-picker-container:hover .saas-color-preview {
+        border-color: var(--glow-color-2);
       }
     </style>
   <script type="importmap">
@@ -22,12 +219,18 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0"
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "express": "https://aistudiocdn.com/express@^5.1.0",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "googleapis": "https://aistudiocdn.com/googleapis@^164.1.0",
+    "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
+    "ytdl-core": "https://aistudiocdn.com/ytdl-core@^4.11.5"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-900 text-gray-100">
+  <body class="bg-gray-950 text-gray-100">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

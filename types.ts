@@ -4,14 +4,16 @@ export interface ContentPlan {
     title: string;
     hook: string;
     introduction: string;
-    mainPoints: { point: string; details: string }[];
+    mainPoints: string[];
     conclusion: string;
     cta: string;
-    visualSuggestions: string[];
     script: string;
+    visualSuggestions: string[];
     captions: string[];
     hashtags: string[];
     suggestedDuration: string;
+    thumbnailSuggestions?: { concept: string; reason: string }[];
+    bRollSuggestions?: { timestamp: string; suggestion: string }[];
 }
 
 export interface BrainstormResult {
@@ -20,25 +22,89 @@ export interface BrainstormResult {
     trendingTopics: string[];
 }
 
-export interface VideoAnalysis {
+export interface AnalysisMetric {
     rating: number;
     detailedFeedback: string;
 }
 
+export interface EnhancedScriptMetric {
+    rating: number;
+    feedback: string;
+}
+
 export interface VideoAnalysisResult {
     analysis: {
-        hook: VideoAnalysis;
-        storytelling: VideoAnalysis;
-        cta: VideoAnalysis;
+        hook: AnalysisMetric;
+        pacing: AnalysisMetric;
+        engagement: AnalysisMetric;
+        clarity: AnalysisMetric;
+        visuals: AnalysisMetric;
     };
     enhancedScript: {
         script: string;
-        hook: { rating: number };
-        storytelling: { rating: number };
-        cta: { rating: number };
+        hook: EnhancedScriptMetric;
+        storytelling: EnhancedScriptMetric;
+        cta: EnhancedScriptMetric;
     };
 }
 
+export interface TopicValidationResult {
+    viralityScore: number;
+    swotAnalysis: {
+        strengths: string[];
+        weaknesses: string[];
+        opportunities: string[];
+        threats: string[];
+    };
+    suggestedTopics: string[];
+}
+
+export interface SocialContentResult {
+    captions: string[];
+    hashtags: string[];
+}
+
+export interface CampaignPlan {
+    objective: string;
+    days: {
+        day: number;
+        topic: string;
+        goal: string;
+    }[];
+}
+
+export interface PerformanceAnalysis {
+    viralityPotential: number;
+    scores: {
+        hookEffectiveness: number;
+        clarity: number;
+        engagement: number;
+        ctaStrength: number;
+    };
+    audienceSentiment: {
+        summary: string;
+        commonThemes: string[];
+    };
+    keyTakeaways: string[];
+    improvementSuggestions: string[];
+    nextVideoIdeas: string[];
+}
+
+export interface HeadshotConfig {
+    background: 'Studio White' | 'Studio Gray' | 'Studio Black' | 'Studio Blue' | 'Studio Dark Blue' | 'Studio Green' | 'Studio Orange' | 'Office' | 'Outdoor Cafe' | 'Modern Tech' | 'Bookshelf' | 'Beach' | 'Cityscape' | 'Nature Landscape' | 'Minimalist Studio' | 'Abstract Gradient' | 'Abstract Geometric' | 'Custom';
+    lighting: 'Professional Studio' | 'Golden Hour' | 'Dramatic' | 'Natural Daylight' | 'Rim Lighting' | 'Softbox Lighting';
+    clothing: {
+        enabled: boolean;
+        style: 'Business Suit' | 'Casual Blazer' | 'Simple T-Shirt' | 'Turtleneck' | 'Formal Dress' | 'Casual Sweater' | 'Athletic Wear';
+        color: string;
+    };
+    highQuality: boolean;
+    backgroundBlur: number;
+    customBackground?: {
+        data: string; // base64
+        mimeType: string;
+    };
+}
 
 export interface Recording {
     id: string;
@@ -48,12 +114,13 @@ export interface Recording {
     url: string;
     captions: string[];
     hashtags: string[];
+    quality: '720p' | '1080p' | '4K';
+    transcriptLog: { text: string, timestamp: number }[];
 }
-
 
 export interface StudioSettings {
     skinTone: 'none' | 'warm' | 'cool' | 'glow';
-    skinSmoothingLevel: number;
+    skinSmoothingLevel: number; // 0 to 1
     noiseReduction: boolean;
     autoLeveling: boolean;
     background: {
@@ -65,6 +132,26 @@ export interface StudioSettings {
     lighting: 'default' | 'ring' | 'golden' | 'dramatic';
     autoCutFillers: boolean;
     colorGrade: 'none' | 'cinematic' | 'vintage' | 'noir' | 'vibrant';
+    livePreviewEnabled: boolean;
+    performanceMode: boolean;
+    teleprompter: {
+        fontSize: number;
+        isMirrored: boolean;
+        opacity: number;
+        textColor: string;
+        lookahead: number;
+    };
+    countdownDuration: 3 | 5 | 10;
+}
+
+export interface VideoDevice {
+    deviceId: string;
+    label: string;
+}
+
+export interface TechnicalAnalysis {
+    audioLevel: 'good' | 'low' | 'clipping';
+    lightingLevel: 'good' | 'dark' | 'bright';
 }
 
 export interface SpeechAnalysis {
@@ -73,44 +160,41 @@ export interface SpeechAnalysis {
     stammers: number;
     coachingHint: string | null;
     isListening: boolean;
+    liveTranscript: string;
+    transcriptLog: { text: string, timestamp: number }[];
 }
 
-export interface HeadshotConfig {
-    background: 'Office' | 'Outdoor Cafe' | 'Studio Gray' | 'Modern Tech' | 'Bookshelf' | 'Beach' | 'Cityscape' | 'Abstract Gradient' | 'Abstract Geometric' | 'Minimalist Studio' | 'Nature Landscape' | 'Custom';
-    customBackground?: string; // base64 string
-    lighting: 'Professional Studio' | 'Golden Hour' | 'Dramatic' | 'Natural Daylight' | 'Rim Lighting' | 'Softbox Lighting';
-    clothing: {
-        enabled: boolean;
-        style: 'Business Suit' | 'Casual Blazer' | 'Simple T-Shirt' | 'Turtleneck' | 'Formal Dress' | 'Casual Sweater' | 'Athletic Wear';
-        color: string;
+export interface BrandKit {
+    logo: string | null; // base64 data URL
+    primaryColor: string;
+    secondaryColor: string;
+    bio: string;
+}
+
+export interface InlineDataPart {
+    inlineData: {
+        data: string; // base64 encoded string
+        mimeType: string;
     };
-    highQuality: boolean;
-    backgroundBlur: number;
 }
 
-export interface RefinedScriptResult {
+// NEW: Competitor Analysis type for the "Spy" feature
+export interface CompetitorAnalysisResult {
+    reconstructedScript: string;
+    hookAnalysis: {
+        hook: string;
+        score: number;
+        explanation: string;
+    };
+    secretFormula: {
+        title: string;
+        description: string;
+    }[];
+    liveStats?: {
+        viewCount: string;
+        likeCount: string;
+        commentCount: string;
+        tags: string[];
+    };
     enhancedScript: string;
-}
-
-// NEW: Interfaces for the Campaign Planner feature
-export interface CampaignDay {
-    day: number;
-    topic: string;
-    goal: string;
-}
-
-export interface CampaignPlan {
-    objective: string;
-    days: CampaignDay[];
-}
-
-// NEW: Interface for the real-time technical coach
-export interface TechnicalAnalysis {
-    audioLevel: 'good' | 'low' | 'clipping';
-    lightingLevel: 'good' | 'dark' | 'bright';
-}
-
-export interface VideoDevice {
-    deviceId: string;
-    label: string;
 }

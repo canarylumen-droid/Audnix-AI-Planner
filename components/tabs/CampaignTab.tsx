@@ -42,25 +42,29 @@ export const CampaignTab: React.FC<CampaignTabProps> = ({ onDevelopTopic }) => {
     };
 
     const renderInputForm = () => (
-        <div className="max-w-2xl mx-auto space-y-6 p-6 bg-gray-800/50 rounded-lg border border-gray-700">
-            <h2 className="text-2xl font-bold text-gray-100">AI Campaign Planner</h2>
-            <p className="text-gray-400">Describe your brand and goal to generate a 7-day social media launch plan.</p>
-            <div>
-                <label htmlFor="brand-info" className="block text-sm font-medium text-gray-300 mb-2">About Your Brand</label>
-                <textarea id="brand-info" rows={3} value={brandInfo} onChange={(e) => setBrandInfo(e.target.value)} placeholder="e.g., 'A sustainable coffee brand that sources beans directly from farmers.'" className="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-200 focus:ring-2 focus:ring-cyan-400" />
+        <div className="max-w-4xl mx-auto space-y-6">
+             <div className="text-center">
+                <h2 className="text-3xl font-bold text-gray-100">AI Campaign Planner</h2>
+                <p className="text-gray-400 mt-2">Describe your brand and goal to generate a 7-day social media launch plan.</p>
             </div>
-            <div>
-                <label htmlFor="product-info" className="block text-sm font-medium text-gray-300 mb-2">Product/Service Details</label>
-                <textarea id="product-info" rows={3} value={productInfo} onChange={(e) => setProductInfo(e.target.value)} placeholder="e.g., 'Our main product is a monthly subscription box with ethically sourced coffee beans.'" className="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-200 focus:ring-2 focus:ring-cyan-400" />
-            </div>
-            <div>
-                <label htmlFor="goal" className="block text-sm font-medium text-gray-300 mb-2">Primary Goal</label>
-                <input type="text" id="goal" value={goal} onChange={(e) => setGoal(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-200 focus:ring-2 focus:ring-cyan-400" />
-            </div>
-            <div className="pt-2">
-                <button onClick={handleGenerate} disabled={isLoading} className="w-full flex justify-center items-center bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-900 font-bold py-3 px-4 rounded-md transition-all duration-300">
-                    {isLoading ? <><Spinner /><span className="ml-2">Generating...</span></> : "Generate 7-Day Launch Plan"}
-                </button>
+            <div className="p-6 bg-gray-800/50 rounded-lg border border-gray-700 space-y-6">
+                <div>
+                    <label htmlFor="brand-info" className="block text-sm font-medium text-gray-300 mb-2">About Your Brand</label>
+                    <textarea id="brand-info" rows={3} value={brandInfo} onChange={(e) => setBrandInfo(e.target.value)} placeholder="e.g., 'A sustainable coffee brand that sources beans directly from farmers.'" className="w-full saas-input" />
+                </div>
+                <div>
+                    <label htmlFor="product-info" className="block text-sm font-medium text-gray-300 mb-2">Product/Service Details</label>
+                    <textarea id="product-info" rows={3} value={productInfo} onChange={(e) => setProductInfo(e.target.value)} placeholder="e.g., 'Our main product is a monthly subscription box with ethically sourced coffee beans.'" className="w-full saas-input" />
+                </div>
+                <div>
+                    <label htmlFor="goal" className="block text-sm font-medium text-gray-300 mb-2">Primary Goal</label>
+                    <input type="text" id="goal" value={goal} onChange={(e) => setGoal(e.target.value)} className="w-full saas-input" />
+                </div>
+                <div className="pt-2">
+                    <button onClick={handleGenerate} disabled={isLoading} className="w-full saas-button-primary">
+                        {isLoading ? <><Spinner /><span className="ml-2">Generating...</span></> : "Generate 7-Day Launch Plan"}
+                    </button>
+                </div>
             </div>
         </div>
     );

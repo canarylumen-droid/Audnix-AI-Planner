@@ -2,12 +2,16 @@
 import * as React from 'react';
 import { Card } from './common/Card';
 import { ContentPlan, BrainstormResult, VideoAnalysisResult } from '../types';
+import { refineScript } from '../services/geminiService';
+import { Spinner } from './common/Spinner';
 
 interface ResultsViewProps {
     plan: ContentPlan | null;
     brainstormResult: BrainstormResult | null;
     videoAnalysis: VideoAnalysisResult | null;
     onStartRecording: (script: string, title: string) => void;
+    onGenerateFinalPlan: () => void;
+    isCombining: boolean;
 }
 
 const RatingBar: React.FC<{ rating: number }> = ({ rating }) => {
@@ -21,7 +25,24 @@ const RatingBar: React.FC<{ rating: number }> = ({ rating }) => {
 };
 
 
-export const ResultsView: React.FC<ResultsViewProps> = ({ plan, brainstormResult, videoAnalysis, onStartRecording }) => {
+export const ResultsView: React.FC<ResultsViewProps> = ({ 
+    plan, 
+    brainstormResult, 
+    videoAnalysis, 
+    onStartRecording,
+    onGenerateFinalPlan,
+    isCombining
+}) => {
+    const [currentEnhancedScript, setCurrentEnhancedScript] = React.useState<string>('');
+    const [isRefining, setIsRefining] = React.useState(false);
+    const [refineError, setRefineError] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (videoAnalysis) {
+            setCurrentEnhancedScript(videoAnalysis.enhancedScript.script);
+            setRefineError(null); // Clear previous errors
+        }
+    }, [videoAnalysis]);
     
     const calculateDuration = (script: string): string => {
         const wordsPerMinute = 150; // Average speaking rate
@@ -34,12 +55,41 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan, brainstormResult
         return `${m}m ${s}s`;
     };
 
+    const handleRefineFurther = async () => {
+        if (!currentEnhancedScript) return;
+        setIsRefining(true);
+        setRefineError(null);
+        try {
+            const result = await refineScript(currentEnhancedScript);
+            setCurrentEnhancedScript(result.enhancedScript);
+        } catch (err) {
+            setRefineError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsRefining(false);
+        }
+    };
+
     if (!plan && !brainstormResult && !videoAnalysis) {
         return null;
     }
+    
+    const showCombinationSection = brainstormResult && videoAnalysis && !plan;
 
     return (
         <div className="space-y-6">
+            {showCombinationSection && (
+                 <div className="p-6 bg-gray-800/50 rounded-lg border-2 border-dashed border-cyan-700 text-center space-y-4">
+                    <h2 className="text-2xl font-bold text-gray-100">Ready to Combine?</h2>
+                    <p className="text-gray-400 max-w-xl mx-auto">You have brainstorming ideas and a video analysis. Combine them with AI to create the ultimate, final content plan.</p>
+                    <button 
+                        onClick={onGenerateFinalPlan}
+                        disabled={isCombining}
+                        className="w-full max-w-sm mx-auto flex justify-center items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-md transition-all duration-300"
+                    >
+                        {isCombining ? <><Spinner /> Combining...</> : '✨ Create Final Combined Plan'}
+                    </button>
+                </div>
+            )}
             {plan && (
                 <div className="space-y-4">
                     <h2 className="text-2xl font-bold text-gray-100">{plan.title}</h2>
@@ -58,6 +108,30 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan, brainstormResult
                     <Card title="🎬 Full Script" initiallyOpen={true}>
                         <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{plan.script}</p>
                     </Card>
+                    {plan.thumbnailSuggestions && plan.thumbnailSuggestions.length > 0 && (
+                        <Card title="🖼️ AI Thumbnail Ideas">
+                            <div className="space-y-4">
+                                {plan.thumbnailSuggestions.map((item, index) => (
+                                    <div key={index} className="p-3 bg-gray-800/50 rounded-md border border-gray-700">
+                                        <p className="font-bold text-gray-200">{item.concept}</p>
+                                        <p className="text-sm text-gray-400 mt-1">{item.reason}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+                    )}
+                    {plan.bRollSuggestions && plan.bRollSuggestions.length > 0 && (
+                        <Card title="🎞️ AI B-Roll Shot List">
+                            <div className="space-y-3">
+                                {plan.bRollSuggestions.map((item, index) => (
+                                    <div key={index} className="flex gap-4 text-sm">
+                                        <span className="font-bold text-cyan-400 w-24">{item.timestamp}</span>
+                                        <p className="text-gray-300">{item.suggestion}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+                    )}
                      <Card title="✍️ Captions & Hashtags">
                         <div className="space-y-4">
                             <div>
@@ -72,14 +146,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan, brainstormResult
                             </div>
                         </div>
                     </Card>
-                    <Card title="💡 Visual Suggestions">
+                    <Card title="💡 On-Screen Text Ideas">
                         <ul className="list-disc list-inside text-gray-300 space-y-2">
                             {plan.visualSuggestions.map((suggestion, index) => (
                                 <li key={index}>{suggestion}</li>
                             ))}
                         </ul>
                     </Card>
-                    <button onClick={() => onStartRecording(plan.script, plan.title)} className="w-full bg-cyan-500 hover:bg-cyan-600 text-gray-900 font-bold py-3 px-4 rounded-md transition">
+                    <button onClick={() => onStartRecording(plan.script, plan.title)} className="w-full saas-button-primary">
                         Start Recording in Studio
                     </button>
                 </div>
@@ -118,22 +192,32 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan, brainstormResult
                         </div>
                     </Card>
                      <Card title="🚀 Enhanced Script" initiallyOpen={true}>
-                         <div className="bg-fuchsia-900/20 border border-fuchsia-700 p-4 rounded-lg text-center mb-4">
-                            <p className="text-fuchsia-300 font-semibold text-lg">
-                                Estimated Duration: <span className="font-bold">{calculateDuration(videoAnalysis.enhancedScript.script)}</span>
+                         <div className="bg-blue-900/20 border border-blue-700 p-4 rounded-lg text-center mb-4">
+                            <p className="text-blue-300 font-semibold text-lg">
+                                Estimated Duration: <span className="font-bold">{calculateDuration(currentEnhancedScript)}</span>
                             </p>
                         </div>
-                        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{videoAnalysis.enhancedScript.script}</p>
+                        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{currentEnhancedScript}</p>
                          <div className="mt-4 space-y-2 border-t border-gray-700 pt-4">
                              <h4 className="font-bold text-gray-200">New Script Ratings:</h4>
                               <div className="flex items-center gap-2 text-sm"><span className="w-24">Hook:</span><RatingBar rating={videoAnalysis.enhancedScript.hook.rating} /><span className="font-bold">{videoAnalysis.enhancedScript.hook.rating}</span></div>
                              <div className="flex items-center gap-2 text-sm"><span className="w-24">Storytelling:</span><RatingBar rating={videoAnalysis.enhancedScript.storytelling.rating} /><span className="font-bold">{videoAnalysis.enhancedScript.storytelling.rating}</span></div>
                              <div className="flex items-center gap-2 text-sm"><span className="w-24">CTA:</span><RatingBar rating={videoAnalysis.enhancedScript.cta.rating} /><span className="font-bold">{videoAnalysis.enhancedScript.cta.rating}</span></div>
                         </div>
+                         {refineError && <p className="text-red-400 text-sm mt-2 p-2 bg-red-900/20 rounded-md">{refineError}</p>}
                     </Card>
-                     <button onClick={() => onStartRecording(videoAnalysis.enhancedScript.script, "Enhanced Video Script")} className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-4 rounded-md transition">
-                        Record Enhanced Script in Studio
-                    </button>
+                     <div className="space-y-2">
+                        <button onClick={() => onStartRecording(currentEnhancedScript, "Enhanced Video Script")} className="w-full saas-button-primary bg-blue-600 hover:bg-blue-500">
+                            Record Enhanced Script in Studio
+                        </button>
+                        <button
+                            onClick={handleRefineFurther}
+                            disabled={isRefining}
+                            className="w-full flex justify-center items-center gap-2 border-2 border-blue-500 hover:bg-blue-500/20 disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-blue-300 font-bold py-3 px-4 rounded-md transition-all duration-300"
+                        >
+                            {isRefining ? <><Spinner /> Refining...</> : '✨ Refine Further with AI'}
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
